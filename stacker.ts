@@ -21,26 +21,21 @@ export class Token {
 }
 
 export type OpTable = {[operatorName: string]: (...args: Token[]) => Token};
+export type RuleSet = [RegExp, (string) => Token | void][];
 
 export class Tokenizer {
-    tokenBuilder: (value: string) => Token;
+    ruleSet: RuleSet;
 
-    constructor(tokenBuilder: (value: string) => Token) {
-        this.tokenBuilder = tokenBuilder;
+    constructor(ruleSet: RuleSet) {
+        this.ruleSet = ruleSet;
     }
 
     *tokenize(input: string): Iterable<Token> {
-        const rules: [RegExp, Function][] = [
-            [/\s+/, _ => {}],
-            [/~[^~]*?~/, _ => {}],
-            [/\S+/, match => this.tokenBuilder(match)],
-        ];
-
         while (input.length > 0) {
             let longestLength = 0;
             let bestMatch = null;
             let bestRule = null;
-            for (let [pattern, rule] of rules) {
+            for (let [pattern, rule] of this.ruleSet) {
                 const result = pattern.exec(input);
                 if (!result || result.index !== 0) { continue; }
 
@@ -94,22 +89,27 @@ export class Interpreter {
 }
 
 export function run(input: string): Token {
-    const opTable = {
+    const opTable: OpTable = {
         "+": (a, b) => new Token({type: "symbol", value: a.value + b.value}),
         "-": (a, b) => new Token({type: "symbol", value: a.value - b.value}),
         "*": (a, b) => new Token({type: "symbol", value: a.value * b.value}),
         "/": (a, b) => new Token({type: "symbol", value: a.value / b.value})
     };
 
-    const tokenBuilder = (value): Token => {
-        if (value in opTable) {
-            return {type: "operator", value: value};
-        } else {
-            return {type: "symbol", value: Number.parseFloat(value)};
-        }
-    };
+    const ruleSet: RuleSet = [
+        [/\s+/, _ => {}],
+        [/~[^~]*?~/, _ => {}],
+        [/'\S+/, match => ({type: "symbol", value: match.slice(1)})],
+        [/\S+/, match => {
+            if (match in opTable) {
+                return {type: "operator", value: match};
+            } else {
+                return {type: "symbol", value: Number.parseFloat(match)};
+            }
+        }]
+    ];
 
-    const tokenizer = new Tokenizer(tokenBuilder);
+    const tokenizer = new Tokenizer(ruleSet);
     const interpreter = new Interpreter(opTable);
     return interpreter.evaluate(logItems(tokenizer.tokenize(input))).value;
 }
