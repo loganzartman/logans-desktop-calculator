@@ -20,7 +20,7 @@ export class Token {
     }
 }
 
-export type OpTable = {[operatorName: string]: (...args: Token[]) => Token};
+export type OpTable = {[operatorName: string]: (...args: Token[]) => Token[] | Token | void};
 export type RuleSet = [RegExp, (string) => Token | void][];
 
 export class Tokenizer {
@@ -80,7 +80,12 @@ export class Interpreter {
                     if (stack.length === 0) { throw new Error(`Expected ${op.length} operands for operator "${tok.value}"`); }
                     args.push(stack.pop()); 
                 }
-                stack.push(op(...args));
+                const result = op(...args);
+                if (result instanceof Array) {
+                    stack.push(...result);
+                } else if (result) {
+                    stack.push(result);
+                }
             }
         }
         if (stack.length > 1) { throw new Error(`Incomplete program; extra items on stack.`); }
@@ -93,7 +98,10 @@ export function run(input: string): Token {
         "+": (a, b) => new Token({type: "symbol", value: a.value + b.value}),
         "-": (a, b) => new Token({type: "symbol", value: a.value - b.value}),
         "*": (a, b) => new Token({type: "symbol", value: a.value * b.value}),
-        "/": (a, b) => new Token({type: "symbol", value: a.value / b.value})
+        "/": (a, b) => new Token({type: "symbol", value: a.value / b.value}),
+        "alias-op": (a, b) => {
+            opTable[a.value] = opTable[b.value];
+        }
     };
 
     const ruleSet: RuleSet = [
