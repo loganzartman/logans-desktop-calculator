@@ -1,83 +1,10 @@
 export class InputExhausted extends Error {}
 export class UnknownOperator extends Error {}
 
-function iterator<T>(x: Iterable<T>): Iterator<T> {
-    return x[Symbol.iterator]();
-}
-
-function* newlineTerminate(input: Iterable<string>): Iterable<string> {
-    yield* input;
-    yield "\n";
-}
-
 function* logItems<T>(items: Iterable<T>): Iterable<T> {
     for (let item of items) {
         console.log(item);
         yield item;
-    }
-}
-
-class Scanner {
-    private input: Iterable<string>;
-    private iter: Iterator<string>;
-    private done: boolean = false;
-    private buffer: string[] = [];
-
-    constructor(input: Iterable<string>) {
-        this.input = input;
-        this.iter = iterator(newlineTerminate(this.input));
-    }
-
-    private scan(): boolean {
-        if (this.done) { return false; }
-        const item = this.iter.next();
-        this.buffer.push(item.value);
-        this.done = item.done;
-        return true;
-    }
-
-    private getchar(): string | null {
-        if (this.buffer.length > 0) { return this.buffer.shift(); }
-        if (!this.scan()) { return null; }
-        return this.buffer.shift();
-    }
-
-    empty(): boolean {
-        return this.done;
-    }
-
-    next(n: number = 1, exact: boolean = false): string {
-        const buffer = [];
-        for (let i = 0; i < n; ++i) {
-            const char = this.getchar();
-            if (char !== null) { buffer.push(char); }
-            else if (exact) { throw new InputExhausted(); }
-            else { break; }
-        }
-        return buffer.join("");
-    }
-
-    peek(n: number = 1): string {
-        const ahead = n - this.buffer.length;
-        for (let i = 0; i < ahead; ++i) { this.scan(); }
-        const available = Math.min(this.buffer.length, n);
-        return this.buffer.slice(0, available).join("");
-    }
-
-    until(seq: string | string[], inclusive: boolean = false): string {
-        if (typeof seq === "string") { seq = [seq]; }
-        const peekDist = seq.reduce((prev, current) => Math.max(prev, current.length), 0);
-        const buffer = [];
-        while (!this.empty()) {
-            const upcoming = this.peek(peekDist);
-            const match = seq.find(item => upcoming.startsWith(item));
-            if (match) {
-                if (inclusive) { buffer.push(this.next(match.length)); }
-                return buffer.join("");
-            }
-            buffer.push(this.next());
-        }
-        throw new InputExhausted();
     }
 }
 
@@ -102,27 +29,35 @@ export class Tokenizer {
         this.tokenBuilder = tokenBuilder;
     }
 
-    *tokenize(input: string | Iterable<string>): Iterable<Token> {
-        if (typeof input === "string") {
-            input = input.split("");
-        }
+    *tokenize(input: string): Iterable<Token> {
+        const rules: [RegExp, Function][] = [
+            [/\s+/, _ => {}],
+            [/~[^~]*?~/, _ => {}],
+            [/\S+/, match => this.tokenBuilder(match)],
+        ];
 
-        const scanner = new Scanner(input);
-        while (!scanner.empty()) {
-            // eat extra whitespace
-            if (/\s/.test(scanner.peek())) { scanner.next(); }
+        while (input.length > 0) {
+            let longestLength = 0;
+            let bestMatch = null;
+            let bestRule = null;
+            for (let [pattern, rule] of rules) {
+                const result = pattern.exec(input);
+                if (!result || result.index !== 0) { continue; }
 
-            // eat comments
-            if (scanner.peek(2) === "/*") {
-                scanner.next(2);
-                while (scanner.peek(2) !== "*/") { scanner.next(1, true); }
-                scanner.next(2);
+                const length = result[0].length;
+                if (length > longestLength) {
+                    longestLength = length;
+                    bestMatch = result[0];
+                    bestRule = rule;
+                }
             }
-
-            if (/\S/.test(scanner.peek())) {
-                const value = scanner.until([" ", "\t", "\n", "\r\n"]);
-                yield this.tokenBuilder(value);
+            if (longestLength === 0) { 
+                throw new Error(`Unrecognized grammar starting here: ${input.slice(0, 32)}`); 
             }
+            
+            const token = bestRule(bestMatch);
+            if (token) { yield token; }
+            input = input.slice(longestLength);
         }
     }
 }
@@ -146,15 +81,19 @@ export class Interpreter {
             if (tok.type === "operator") {
                 const op = this.getOp(tok.value);
                 const args = [];
-                for (let i = 0; i < op.length; ++i) { args.push(stack.pop()); }
+                for (let i = 0; i < op.length; ++i) { 
+                    if (stack.length === 0) { throw new Error(`Expected ${op.length} operands for operator "${tok.value}"`); }
+                    args.push(stack.pop()); 
+                }
                 stack.push(op(...args));
             }
         }
+        if (stack.length > 1) { throw new Error(`Incomplete program; extra items on stack.`); }
         return stack.pop();
     }
 }
 
-export function run(input: string | Iterable<string>): Token {
+export function run(input: string): Token {
     const opTable = {
         "+": (a, b) => new Token({type: "symbol", value: a.value + b.value}),
         "-": (a, b) => new Token({type: "symbol", value: a.value - b.value}),
