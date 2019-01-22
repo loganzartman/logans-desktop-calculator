@@ -42,7 +42,7 @@ export class Tokenizer {
                 const length = result[0].length;
                 if (length > longestLength) {
                     longestLength = length;
-                    bestMatch = result[0];
+                    bestMatch = result;
                     bestRule = rule;
                 }
             }
@@ -106,10 +106,21 @@ export function run(input: string): Token {
     };
 
     const ruleSet: RuleSet = [
+        // eat whitespace
         [/\s+/, _ => {}],
-        [/~[^~]*?~/, _ => {}],
-        [/'\S+/, match => ({type: "symbol", value: match.slice(1)})],
-        [/\S+/, match => {
+
+        // eat single-line comments
+        [/\/\/.*?$/m, _ => {}],
+
+        // eat multiline comments
+        [/\*+[^*]*\*+(?:[^/*][^*]*\*+)*/, _ => {}],
+
+        // strings with support for arbitrary escapes
+        [/"((?:[^"\\]|\\.)*?)"/, result => ({type: "symbol", value: result[1]})],
+        
+        // identifiers
+        [/\S+/, result => {
+            const match = result[0];
             if (match in opTable) {
                 return {type: "operator", value: match};
             } else {
