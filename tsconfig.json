@@ -2,9 +2,10 @@
     "compilerOptions": {
         "target": "es2016",
         "module": "commonjs",
-        "downlevelIteration": true
+        "downlevelIteration": true,
+        "types": ["node"]
     },
     "include": [
         "*.ts"
-    ]
+    ],
 }

@@ -114,5 +114,5 @@ export function run(input: string): Token {
     return interpreter.evaluate(logItems(tokenizer.tokenize(input))).value;
 }
 
-declare const process: any;
-console.log(run(process.argv.slice(2).join(" ")));
+const fs = require("fs");
+console.log(run(fs.readFileSync(0, "utf8")));

@@ -1,0 +1,6 @@
+2 ~stack: 2~
+2 ~stack: 2 2~
+3 ~stack: 2 2 3~
+* ~stack: 2 6~
++ ~stack: 8~
+
