@@ -99,6 +99,7 @@ export function run(input: string): Token {
         "-": (a, b) => new Token({type: "symbol", value: a.value - b.value}),
         "*": (a, b) => new Token({type: "symbol", value: a.value * b.value}),
         "/": (a, b) => new Token({type: "symbol", value: a.value / b.value}),
+        "print": (a) => { console.log(a.value); },
         "alias-op": (a, b) => {
             opTable[a.value] = opTable[b.value];
         }

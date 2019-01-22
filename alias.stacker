@@ -1,2 +1,4 @@
 '+ 'add alias-op ~create "add" as an alias for "+"~
-2 2 add
+2 2 add print
+'world 'hello add print
+'end
