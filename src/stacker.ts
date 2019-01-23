@@ -71,11 +71,13 @@ export class Operator {
     func: OperatorFunction;
     arity: number;
     rest: boolean;
+    protected interpreter: Interpreter;
 
     constructor(func: OperatorFunction, rest = false, arity = func.length) {
         this.func = func;
         this.arity = arity;
         this.rest = rest;
+        this.interpreter = null;
     }
 
     protected collectArgs(interpreter: Interpreter, name: string) {
@@ -105,8 +107,11 @@ export class Operator {
 
     invoke(interpreter: Interpreter, name: string) {
         const args = this.collectArgs(interpreter, name);
-        const result = this.func(...args);
+        this.interpreter = interpreter;
+        const result = this.func.apply(this, args);
+        this.interpreter = null;
         this.pushResult(interpreter, result);
+        return result;
     }
 }
 
@@ -122,7 +127,7 @@ export class Interpreter {
 
     getOp(name: string) {
         if (name in this.opTable) { return this.opTable[name]; }
-        throw new UnknownOperator();
+        throw new Error(`"${name}" is not an operator`);
     }
 
     evaluate(input: Iterable<Token>): Token {
@@ -144,13 +149,27 @@ export function run(input: string): Token {
         "-": new Operator((a, b) => new Token({type: "symbol", value: a.value - b.value})),
         "*": new Operator((a, b) => new Token({type: "symbol", value: a.value * b.value})),
         "/": new Operator((a, b) => new Token({type: "symbol", value: a.value / b.value})),
+        "^": new Operator((a, b) => new Token({type: "symbol", value: a.value ** b.value})),
         "print": new Operator((a) => { console.log(a.value); }),
         "dup": new Operator((a) => [a, a.clone()]),
         "swap": new Operator((a, b) => [a, b]),
         "pop": new Operator((_) => {}),
         "clear": new Operator((...args) => {}, true),
-        "reduce+": new Operator((initial, ...args) => 
-            new Token({type: "symbol", value: args.reduce((p, c) => p + c.value, initial.value)}), true),
+        "reduce": new Operator(function(op, first, ...args) {
+            const operator = this.interpreter.getOp(op.value) as Operator;
+            if (operator.arity !== 2) { 
+                throw new Error(`A reduce operation must accept 2 operands; "${op.value}" requires ${operator.arity}`); 
+            }
+            this.interpreter.stack.push(first);
+            for (let a of args) {
+                this.interpreter.stack.push(a);
+                const result = operator.invoke(this.interpreter, op.value);
+                if (isIterable(result)) {
+                    throw new Error(`Reduce operation "${op.value}" produced more than one return value`);
+                }
+            }
+            return this.interpreter.stack.pop();
+        }, true),
         "alias-op": new Operator((a, b) => {
             opTable[a.value] = opTable[b.value];
         })
