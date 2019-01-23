@@ -18,6 +18,11 @@ export class Token {
         this.type = type;
         this.value = value;
     }
+
+    clone(): Token {
+        const {type, value} = this;
+        return new Token({type, value});
+    }
 }
 
 export type OpTable = {[operatorName: string]: (...args: Token[]) => Token[] | Token | void};
@@ -100,6 +105,9 @@ export function run(input: string): Token {
         "*": (a, b) => new Token({type: "symbol", value: a.value * b.value}),
         "/": (a, b) => new Token({type: "symbol", value: a.value / b.value}),
         "print": (a) => { console.log(a.value); },
+        "dup": (a) => [a, a.clone()],
+        "swap": (a, b) => [a, b],
+        "pop": (_) => {},
         "alias-op": (a, b) => {
             opTable[a.value] = opTable[b.value];
         }
@@ -116,22 +124,24 @@ export function run(input: string): Token {
         [/\*+[^*]*\*+(?:[^/*][^*]*\*+)*/, _ => {}],
 
         // strings with support for arbitrary escapes
-        [/"((?:[^"\\]|\\.)*?)"/, result => ({type: "symbol", value: result[1]})],
+        [/"((?:[^"\\]|\\.)*?)"/, result => new Token({type: "symbol", value: result[1]})],
         
         // identifiers
         [/\S+/, result => {
             const match = result[0];
             if (match in opTable) {
-                return {type: "operator", value: match};
+                return new Token({type: "operator", value: match});
             } else {
-                return {type: "symbol", value: Number.parseFloat(match)};
+                return new Token({type: "symbol", value: Number.parseFloat(match)});
             }
         }]
     ];
 
     const tokenizer = new Tokenizer(ruleSet);
     const interpreter = new Interpreter(opTable);
-    return interpreter.evaluate(logItems(tokenizer.tokenize(input))).value;
+    const result = interpreter.evaluate(logItems(tokenizer.tokenize(input)));
+    if (result) { return result.value; }
+    else { return undefined; }
 }
 
 const fs = require("fs");

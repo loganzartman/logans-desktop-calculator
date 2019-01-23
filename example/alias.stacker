@@ -1,4 +1,3 @@
 "+" "add" alias-op // create "add" as an alias for "+"
 2 2 add print
-"world" "hello " add print
-"end"
+"world" "hello " add dup print
