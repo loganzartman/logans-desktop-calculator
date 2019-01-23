@@ -21,7 +21,7 @@
                 outline: none;
                 color: #A3FFB8;
             }
-            #output {
+            #stack {
                 font-size: 1em;
                 color: #FF7563;
                 font-weight: bold;
@@ -29,6 +29,19 @@
                 margin-top: 0.5em;
                 border-radius: 0.1em;
                 display: inline-block;
+            }
+            #registers {
+                margin-top: 0.5em;
+                display: inline-block;
+            }
+            #registers>span {
+                background: #45CC3B;
+                color: #26211E;
+                font-style: italic;
+                font-size: 1em;
+                padding: 0.1em 0.3em;
+                margin-right: 0.25em;
+                border-radius: 0.1em;
             }
             body {
                 font-family: "Inconsolata", monospace;
@@ -47,7 +60,8 @@
         </header>
         <main>
             <input type="text" id="input"/><br>
-            <span id="output">start typing to calculate!</span>
+            <span id="registers"></span><br>
+            <span id="stack">start typing to calculate!</span>
         </main>
     </body>
 </html>

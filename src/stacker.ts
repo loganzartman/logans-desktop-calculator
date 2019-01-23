@@ -144,6 +144,7 @@ export class Interpreter {
 }
 
 export function run(input: string) {
+    const memory: {[key: string]: Token} = {};
     const opTable: OpTable = {
         "+": new Operator((a, b) => new Token({type: "symbol", value: a.value + b.value})),
         "-": new Operator((a, b) => new Token({type: "symbol", value: a.value - b.value})),
@@ -172,7 +173,10 @@ export function run(input: string) {
         }, true),
         "alias-op": new Operator((a, b) => {
             opTable[a.value] = opTable[b.value];
-        })
+        }),
+        "store": new Operator((name, val) => {memory[name.value] = val}),
+        "load": new Operator((name) => memory[name.value]),
+        "delete": new Operator((name) => {delete memory[name.value]})
     };
 
     const ruleSet: RuleSet = [
@@ -202,6 +206,6 @@ export function run(input: string) {
     const tokenizer = new Tokenizer(ruleSet);
     const interpreter = new Interpreter(opTable);
     const result = interpreter.evaluate(logItems(tokenizer.tokenize(input)));
-    if (result) { return {value: result.value, interpreter}; }
-    else { return {value: undefined, interpreter}; }
+    if (result) { return {value: result.value, interpreter, memory}; }
+    else { return {value: undefined, interpreter, memory}; }
 }
