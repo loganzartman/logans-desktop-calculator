@@ -1,6 +1,10 @@
 export class InputExhausted extends Error {}
 export class UnknownOperator extends Error {}
 
+function isIterable(x): x is Iterable<any> {
+    return x && Symbol.iterator in x;
+}
+
 function* logItems<T>(items: Iterable<T>): Iterable<T> {
     for (let item of items) {
         console.log(item);
@@ -25,7 +29,6 @@ export class Token {
     }
 }
 
-export type OpTable = {[operatorName: string]: (...args: Token[]) => Token[] | Token | void};
 export type RuleSet = [RegExp, (string) => Token | void][];
 
 export class Tokenizer {
@@ -62,7 +65,55 @@ export class Tokenizer {
     }
 }
 
+type OperatorResult = Iterable<Token> | Token | void;
+type OperatorFunction = (...args: Token[]) => OperatorResult;
+export class Operator {
+    func: OperatorFunction;
+    arity: number;
+    rest: boolean;
+
+    constructor(func: OperatorFunction, rest = false, arity = func.length) {
+        this.func = func;
+        this.arity = arity;
+        this.rest = rest;
+    }
+
+    protected collectArgs(interpreter: Interpreter, name: string) {
+        // collect positional arguments
+        const args = [];
+        for (let i = 0; i < this.arity; ++i) { 
+            if (interpreter.stack.length === 0) { throw new Error(`Expected ${this.arity} operands for operator "${name}"`); }
+            args.push(interpreter.stack.pop()); 
+        }
+
+        // collect rest arguments
+        if (this.rest) {
+            while (interpreter.stack.length > 0) {
+                args.push(interpreter.stack.pop());
+            }
+        }
+        return args;
+    }
+
+    protected pushResult(interpreter: Interpreter, result: OperatorResult) {
+        if (isIterable(result)) {
+            interpreter.stack.push(...result);
+        } else if (result) {
+            interpreter.stack.push(result);
+        }
+    }
+
+    invoke(interpreter: Interpreter, name: string) {
+        const args = this.collectArgs(interpreter, name);
+        const result = this.func(...args);
+        this.pushResult(interpreter, result);
+    }
+}
+
+export type OpTable = {[operatorName: string]: Operator};
+
 export class Interpreter {
+    stack: Token[] = [];
     opTable: OpTable;
 
     constructor(opTable: OpTable) {
@@ -75,42 +126,34 @@ export class Interpreter {
     }
 
     evaluate(input: Iterable<Token>): Token {
-        const stack: Token[] = [];
         for (let tok of input) { 
-            if (tok.type === "symbol") { stack.push(tok); }
+            if (tok.type === "symbol") { this.stack.push(tok); }
             if (tok.type === "operator") {
                 const op = this.getOp(tok.value);
-                const args = [];
-                for (let i = 0; i < op.length; ++i) { 
-                    if (stack.length === 0) { throw new Error(`Expected ${op.length} operands for operator "${tok.value}"`); }
-                    args.push(stack.pop()); 
-                }
-                const result = op(...args);
-                if (result instanceof Array) {
-                    stack.push(...result);
-                } else if (result) {
-                    stack.push(result);
-                }
+                op.invoke(this, tok.value);
             }
         }
-        if (stack.length > 1) { throw new Error(`Incomplete program; extra items on stack.`); }
-        return stack.pop();
+        if (this.stack.length === 0) { return undefined; }
+        return this.stack[this.stack.length - 1];
     }
 }
 
 export function run(input: string): Token {
     const opTable: OpTable = {
-        "+": (a, b) => new Token({type: "symbol", value: a.value + b.value}),
-        "-": (a, b) => new Token({type: "symbol", value: a.value - b.value}),
-        "*": (a, b) => new Token({type: "symbol", value: a.value * b.value}),
-        "/": (a, b) => new Token({type: "symbol", value: a.value / b.value}),
-        "print": (a) => { console.log(a.value); },
-        "dup": (a) => [a, a.clone()],
-        "swap": (a, b) => [a, b],
-        "pop": (_) => {},
-        "alias-op": (a, b) => {
+        "+": new Operator((a, b) => new Token({type: "symbol", value: a.value + b.value})),
+        "-": new Operator((a, b) => new Token({type: "symbol", value: a.value - b.value})),
+        "*": new Operator((a, b) => new Token({type: "symbol", value: a.value * b.value})),
+        "/": new Operator((a, b) => new Token({type: "symbol", value: a.value / b.value})),
+        "print": new Operator((a) => { console.log(a.value); }),
+        "dup": new Operator((a) => [a, a.clone()]),
+        "swap": new Operator((a, b) => [a, b]),
+        "pop": new Operator((_) => {}),
+        "clear": new Operator((...args) => {}, true),
+        "reduce+": new Operator((initial, ...args) => 
+            new Token({type: "symbol", value: args.reduce((p, c) => p + c.value, initial.value)}), true),
+        "alias-op": new Operator((a, b) => {
             opTable[a.value] = opTable[b.value];
-        }
+        })
     };
 
     const ruleSet: RuleSet = [
