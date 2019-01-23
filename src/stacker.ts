@@ -143,6 +143,3 @@ export function run(input: string): Token {
     if (result) { return result.value; }
     else { return undefined; }
 }
-
-const fs = require("fs");
-console.log(run(fs.readFileSync(0, "utf8")));

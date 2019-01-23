@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <title>Logan's Desktop Calculator</title>
+        <link href="https://fonts.googleapis.com/css?family=Inconsolata|Merriweather" rel="stylesheet">
+        <style>
+            html, input {
+                color: #CCAF9B;
+                background: #26211E;
+                font-size: 2em;
+            }
+            input {
+                font-family: "Inconsolata", monospace;
+                font-size: 1em;
+                width: 25em;
+                border: none;
+                border-bottom: 1px solid #A3FFB8;
+                padding: 0.25em;
+                border-radius: 0.1em;
+                outline: none;
+                color: #A3FFB8;
+            }
+            #output {
+                font-size: 1em;
+                color: #FF7563;
+                font-weight: bold;
+                padding: 0.25em;
+                margin-top: 0.5em;
+                border-radius: 0.1em;
+                display: inline-block;
+            }
+            body {
+                font-family: "Inconsolata", monospace;
+            }
+            header {
+                font-family: "Merriweather", serif;
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>Logan's Desktop Calculator</h1>
+        </header>
+        <main>
+            <input type="text" id="input"/><br>
+            <span id="output">start typing to calculate!</span>
+        </main>
+    </body>
+</html>
