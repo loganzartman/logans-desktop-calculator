@@ -143,7 +143,7 @@ export class Interpreter {
     }
 }
 
-export function run(input: string): Token {
+export function run(input: string) {
     const opTable: OpTable = {
         "+": new Operator((a, b) => new Token({type: "symbol", value: a.value + b.value})),
         "-": new Operator((a, b) => new Token({type: "symbol", value: a.value - b.value})),
@@ -202,6 +202,6 @@ export function run(input: string): Token {
     const tokenizer = new Tokenizer(ruleSet);
     const interpreter = new Interpreter(opTable);
     const result = interpreter.evaluate(logItems(tokenizer.tokenize(input)));
-    if (result) { return result.value; }
-    else { return undefined; }
+    if (result) { return {value: result.value, interpreter}; }
+    else { return {value: undefined, interpreter}; }
 }
