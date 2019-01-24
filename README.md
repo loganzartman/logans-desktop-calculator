@@ -24,7 +24,7 @@
 "square" map                    // 0 1 4 9 16 ...
 "+" reduce
 ```
-*55*
+*285*
 
 ### Fibonacci
 ```C
