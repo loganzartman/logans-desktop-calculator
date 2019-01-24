@@ -244,9 +244,9 @@ export function run(input: string) {
         // eat multiline comments
         [/\*+[^*]*\*+(?:[^/*][^*]*\*+)*/, _ => {}],
 
-        // strings with support for arbitrary escapes
-        [/"((?:[^"\\]|\\.)*?)"/, result => {
-            const str = result[1].replace(/\\(.)/g, "$1");
+        // strings with support for escapes
+        [/("|')((?:[^\1\\]|\\.)*?)\1/, result => {
+            const str = result[2].replace(/\\(.)/g, "$1");
             return new Token({type: "symbol", value: str});
         }],
 
