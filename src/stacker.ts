@@ -194,7 +194,10 @@ export function run(input: string) {
         [/\*+[^*]*\*+(?:[^/*][^*]*\*+)*/, _ => {}],
 
         // strings with support for arbitrary escapes
-        [/"((?:[^"\\]|\\.)*?)"/, result => new Token({type: "symbol", value: result[1]})],
+        [/"((?:[^"\\]|\\.)*?)"/, result => {
+            const str = result[1].replace(/\\(.)/g, "$1");
+            return new Token({type: "symbol", value: str});
+        }],
         
         // identifiers
         [/\S+/, result => {
