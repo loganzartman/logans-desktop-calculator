@@ -120,9 +120,11 @@ export type OpTable = {[operatorName: string]: Operator};
 export class Interpreter {
     stack: Token[] = [];
     opTable: OpTable;
+    tokenizer: Tokenizer;
 
-    constructor(opTable: OpTable) {
+    constructor(opTable: OpTable, tokenizer: Tokenizer) {
         this.opTable = opTable;
+        this.tokenizer = tokenizer;
     }
 
     getOp(name: string) {
@@ -130,7 +132,8 @@ export class Interpreter {
         throw new Error(`"${name}" is not an operator`);
     }
 
-    evaluate(input: Iterable<Token>): Token {
+    evaluate(str: string): Token {
+        const input = this.tokenizer.tokenize(str);
         for (let tok of input) { 
             if (tok.type === "symbol") { this.stack.push(tok); }
             if (tok.type === "operator") {
@@ -176,7 +179,8 @@ export function run(input: string) {
         }),
         "store": new Operator((name, val) => {memory[name.value] = val}),
         "load": new Operator((name) => memory[name.value]),
-        "delete": new Operator((name) => {delete memory[name.value]})
+        "delete": new Operator((name) => {delete memory[name.value]}),
+        "eval": new Operator(function(str) {this.interpreter.evaluate(str.value);}) 
     };
 
     const ruleSet: RuleSet = [
@@ -204,8 +208,8 @@ export function run(input: string) {
     ];
 
     const tokenizer = new Tokenizer(ruleSet);
-    const interpreter = new Interpreter(opTable);
-    const result = interpreter.evaluate(logItems(tokenizer.tokenize(input)));
+    const interpreter = new Interpreter(opTable, tokenizer);
+    const result = interpreter.evaluate(input);
     if (result) { return {value: result.value, interpreter, memory}; }
     else { return {value: undefined, interpreter, memory}; }
 }
