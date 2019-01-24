@@ -204,7 +204,7 @@ export function run(input: string) {
         "alias-op": new Operator((a, b) => {
             opTable[a.value] = opTable[b.value];
         }),
-        "def-op": new Operator((name, arity, code) => {
+        "define-op": new Operator((code, arity, name) => {
             opTable[name.value] = new Operator(function(...args) {
                 this.interpreter.stack.push(...args);
                 this.interpreter.evaluate(code.value);
@@ -232,6 +232,9 @@ export function run(input: string) {
             const str = result[1].replace(/\\(.)/g, "$1");
             return new Token({type: "symbol", value: str});
         }],
+
+        // booleans
+        [/true|false/, result => new Token({type: "symbol", value: result[0] === "true"})],
         
         // identifiers
         [/\S+/, result => {
