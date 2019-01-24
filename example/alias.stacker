@@ -1,7 +1,0 @@
-"+" "add" alias-op // create "add" as an alias for "+"
-2 2 add print
-"world" "hello " add print
-
-"*" "+" alias-op   // alias "+" to perform "*"
-"add" "*" alias-op // alias "*" to perform addition
-2 2 3 + *          // 8, not 10

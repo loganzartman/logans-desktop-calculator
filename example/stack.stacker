@@ -1,3 +1,0 @@
-"a" "b" + print
-"a" "b" dup + print pop
-"a" "b" swap + print
