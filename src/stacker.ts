@@ -174,6 +174,18 @@ export function run(input: string) {
             }
             return this.interpreter.stack.pop();
         }, true),
+        "range": new Operator(function*(start, end, step) {
+            if (typeof start.value !== "number" || typeof end.value !== "number" || typeof step.value !== "number") {
+                throw new Error("range operator expects numerical arguments");
+            }
+            const dir = Math.sign(end.value - start.value);
+            const steps = Math.abs(end.value - start.value) / step.value;
+            let val = start.value;
+            for (let i = 0; i < steps; ++i) {
+                yield new Token({type: "symbol", value: val});
+                val += dir * step.value;
+            }
+        }),
         "alias-op": new Operator((a, b) => {
             opTable[a.value] = opTable[b.value];
         }),
