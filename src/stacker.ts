@@ -162,14 +162,29 @@ export function run(input: string) {
         "reduce": new Operator(function(op, first, ...args) {
             const operator = this.interpreter.getOp(op.value) as Operator;
             if (operator.arity !== 2) { 
-                throw new Error(`A reduce operation must accept 2 operands; "${op.value}" requires ${operator.arity}`); 
+                throw new Error(`A reduce operator must accept 2 operands; "${op.value}" requires ${operator.arity}`); 
             }
             this.interpreter.stack.push(first);
             for (let a of args) {
                 this.interpreter.stack.push(a);
                 const result = operator.invoke(this.interpreter, op.value);
                 if (isIterable(result)) {
-                    throw new Error(`Reduce operation "${op.value}" produced more than one return value`);
+                    throw new Error(`Reduce operator "${op.value}" produced more than one return value`);
+                }
+            }
+            return this.interpreter.stack.pop();
+        }, true),
+        "map": new Operator(function(op, ...args) {
+            const operator = this.interpreter.getOp(op.value) as Operator;
+            if (operator.arity !== 1) { 
+                throw new Error(`A map operator must accept 1 operand; "${op.value}" requires ${operator.arity}`); 
+            }
+            while (args.length > 0) {
+                const a = args.pop();
+                this.interpreter.stack.push(a);
+                const result = operator.invoke(this.interpreter, op.value);
+                if (isIterable(result)) {
+                    throw new Error(`Map operator "${op.value}" produced more than one return value`);
                 }
             }
             return this.interpreter.stack.pop();
@@ -189,6 +204,13 @@ export function run(input: string) {
         "alias-op": new Operator((a, b) => {
             opTable[a.value] = opTable[b.value];
         }),
+        "def-op": new Operator((name, arity, code) => {
+            opTable[name.value] = new Operator(function(...args) {
+                this.interpreter.stack.push(...args);
+                this.interpreter.evaluate(code.value);
+            }, false, arity.value);
+        }),
+        "del-op": new Operator((name) => {delete opTable[name.value]}),
         "store": new Operator((name, val) => {memory[name.value] = val}),
         "load": new Operator((name) => memory[name.value]),
         "delete": new Operator((name) => {delete memory[name.value]}),
