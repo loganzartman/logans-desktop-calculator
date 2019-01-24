@@ -162,6 +162,15 @@ export function run(input: string) {
         "not": new Operator((a) => new Token({type: "symbol", value: !a.value})),
         "and": new Operator((a, b) => new Token({type: "symbol", value: a.value && b.value})),
         "or": new Operator((a, b) => new Token({type: "symbol", value: a.value || b.value})),
+        "if": new Operator(function(condition, then, otherwise) {
+            const result = this.interpreter.evaluate(condition.value);
+            this.interpreter.stack.pop();
+            if (result && result.value) {
+                this.interpreter.evaluate(then.value);
+            } else {
+                this.interpreter.evaluate(otherwise.value);
+            }
+        }),
         "print": new Operator((a) => { console.log(a.value); }),
         "dup": new Operator((a) => [a, a.clone()]),
         "swap": new Operator((a, b) => [a, b]),
