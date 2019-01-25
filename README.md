@@ -43,7 +43,6 @@
 ### Work with the whole stack
 ```C
 "+space" 2 "swap ' ' swap + +" define-op
-"eat" 2 "pop" define-op
 "save-stack" 1 "
   '_name' store
   '+space' reduce
@@ -51,7 +50,7 @@
   '_name' delete
 " define-op
 "load-stack" 1 "load eval" define-op
-"clear-stack" 0 "'eat' reduce pop" define-op
+"clear-stack" 0 "'pop' map" define-op
 
 1 2 3 "stack" save-stack
 5 6 clear-stack
