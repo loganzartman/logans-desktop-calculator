@@ -5,13 +5,6 @@ function isIterable(x): x is Iterable<any> {
     return x && Symbol.iterator in x;
 }
 
-function* logItems<T>(items: Iterable<T>): Iterable<T> {
-    for (let item of items) {
-        console.log(item);
-        yield item;
-    }
-}
-
 export type TokenType = "symbol" | "operator";
 
 export class Token {
