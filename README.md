@@ -17,7 +17,7 @@
 ```
 *28.269*
 
-### Map-reduce
+### Map-reduce with builtins
 ```C
 "square" 1 "2 swap ^" define-op // create an operator that squares a number
 1 10 0 range                    // 0 through 9, step size 1
@@ -40,12 +40,12 @@
 ```
 *34*
 
-### Work with the whole stack
+### Working with the whole stack
 ```C
 "+space" 2 "swap ' ' swap + +" define-op
 "save-stack" 1 "
   '_name' store
-  '+space' reduce
+  '' '+space' reduce
   '_name' load store
   '_name' delete
 " define-op
@@ -56,3 +56,48 @@
 5 6 clear-stack
 "stack" load-stack
 ```
+
+### Implementing block scoping
+```C
+// from previous example
+"+space" 2 "swap ' ' swap + +" define-op
+"save-stack" 1 "
+  '_name' store
+  '' '+space' reduce
+  '_name' load store
+  '_name' delete
+" define-op
+"load-stack" 1 "load eval" define-op
+"clear-stack" 0 "'pop' map" define-op
+
+// implement increment- and decrement-and-return for a counter
+0 "_c" store
+"_scope" 0 "'_c' load dup 1 + '_c' store" define-op
+"_unscope" 0 "'_c' load 1 swap - dup '_c' store" define-op
+
+// implement brackets as operators that save and load the stack
+"{" 0 "_scope '_stack' + save-stack" define-op
+"}" 0 "_unscope '_stack' + load-stack" define-op
+
+2 2 "+" reduce { 1 2 "+" reduce } -
+```
+
+### Anonymous operators
+```C
+0 "_uuid_counter" store
+"uuid" 0 "'_uuid_counter' load dup 1 + '_uuid_counter' store '$$' +" define-op
+
+"n-op" 1 "
+  '_arity' store          // save first arg
+  uuid dup '_id' store    // generate name for op
+  swap '_arity' load swap // reorder args for define-op 
+  define-op               // define 'anonymous' op
+  '_id' load              // return generated name
+  '_id' '_arity' delete delete
+" define-op
+"unop" 1 "1 n-op" define-op
+"binop" 1 "2 n-op" define-op
+
+1 2 3 "2 swap ^" unop map
+```
+*9 4 1*
