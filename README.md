@@ -61,7 +61,7 @@
 ```C
 // from previous example
 spacecat 2 (swap " " swap + +) define-op
-save-stack 1 ("" (spacecat) reduce) define-op
+save-stack 0 ("" (spacecat) reduce) define-op
 
 // implement increment- and decrement-and-return for a counter
 0 _c store
