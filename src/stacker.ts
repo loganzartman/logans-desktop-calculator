@@ -31,8 +31,33 @@ export class Tokenizer {
         this.ruleSet = ruleSet;
     }
 
+    private tokenizeParen(input: string): [Token, string] {
+        let depth = 0;
+        let index = 0;
+        do {
+            if (index >= input.length) {
+                throw new Error("Unmatched parentheses");
+            }
+            if (input[index] === "(") {
+                ++depth;
+            } else if (input[index] === ")") {
+                --depth;
+            }
+            ++index;
+        } while (depth > 0);
+        const val = input.slice(1, index - 1);
+        return [new Token({type: "symbol", value: val}), input.slice(index)];
+    }
+
     *tokenize(input: string): Iterable<Token> {
         while (input.length > 0) {
+            if (input[0] === "(") {
+                const [tok, newInput] = this.tokenizeParen(input);
+                input = newInput;
+                yield tok;
+                continue;
+            }
+
             let longestLength = 0;
             let bestMatch = null;
             let bestRule = null;

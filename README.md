@@ -60,26 +60,19 @@
 ### Implementing block scoping
 ```C
 // from previous example
-"+space" 2 "swap ' ' swap + +" define-op
-"save-stack" 1 "
-  '_name' store
-  '' '+space' reduce
-  '_name' load store
-  '_name' delete
-" define-op
-"load-stack" 1 "load eval" define-op
-"clear-stack" 0 "'pop' map" define-op
+spacecat 2 (swap " " swap + +) define-op
+save-stack 1 ("" (spacecat) reduce) define-op
 
 // implement increment- and decrement-and-return for a counter
-0 "_c" store
-"_scope" 0 "'_c' load dup 1 + '_c' store" define-op
-"_unscope" 0 "'_c' load 1 swap - dup '_c' store" define-op
+0 _c store
+_scope 0 (_c load dup 1 + _c store) define-op
+_unscope 0 (_c load 1 swap - dup _c store) define-op
 
 // implement brackets as operators that save and load the stack
-"{" 0 "_scope '_stack' + save-stack" define-op
-"}" 0 "_unscope '_stack' + load-stack" define-op
+{ 0 (save-stack _scope _stack + store) define-op
+} 0 (_unscope _stack + load eval) define-op
 
-2 2 "+" reduce { 1 2 "+" reduce } -
+2 2 (+) reduce { 1 2 (+) reduce } -
 ```
 
 ### Anonymous operators
