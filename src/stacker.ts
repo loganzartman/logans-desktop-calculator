@@ -247,6 +247,9 @@ export function run(input: string) {
 
         // booleans
         [/true|false/, result => new Token({type: "symbol", value: result[0] === "true"})],
+
+        // numbers 
+        [/[+-]?\d*\.?[0-9]+([eE][+-]?\d+)?/, result => new Token({type: "symbol", value: Number.parseFloat(result[0])})],
         
         // identifiers
         [/\S+/, result => {
@@ -254,7 +257,7 @@ export function run(input: string) {
             if (match in opTable) {
                 return new Token({type: "operator", value: match});
             } else {
-                return new Token({type: "symbol", value: Number.parseFloat(match)});
+                return new Token({type: "symbol", value: match});
             }
         }]
     ];
