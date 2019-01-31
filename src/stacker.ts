@@ -141,20 +141,22 @@ export class Interpreter {
 
 export function run(input: string) {
     const memory: {[key: string]: Token} = {};
+    const valueOp = (lambda: (...args: any[]) => any): Operator => 
+        new Operator((...args) => new Token({type: "symbol", value: lambda(...args)}), false, lambda.length);
     const opTable: OpTable = {
-        "+": new Operator((a, b) => new Token({type: "symbol", value: a.value + b.value})),
-        "-": new Operator((a, b) => new Token({type: "symbol", value: a.value - b.value})),
-        "*": new Operator((a, b) => new Token({type: "symbol", value: a.value * b.value})),
-        "/": new Operator((a, b) => new Token({type: "symbol", value: a.value / b.value})),
-        "^": new Operator((a, b) => new Token({type: "symbol", value: a.value ** b.value})),
-        "==": new Operator((a, b) => new Token({type: "symbol", value: a.value === b.value})),
-        "<": new Operator((a, b) => new Token({type: "symbol", value: a.value < b.value})),
-        ">": new Operator((a, b) => new Token({type: "symbol", value: a.value > b.value})),
-        "<=": new Operator((a, b) => new Token({type: "symbol", value: a.value <= b.value})),
-        ">=": new Operator((a, b) => new Token({type: "symbol", value: a.value >= b.value})),
-        "not": new Operator((a) => new Token({type: "symbol", value: !a.value})),
-        "and": new Operator((a, b) => new Token({type: "symbol", value: a.value && b.value})),
-        "or": new Operator((a, b) => new Token({type: "symbol", value: a.value || b.value})),
+        "+": valueOp((a, b) => a.value + b.value),
+        "-": valueOp((a, b) => a.value - b.value),
+        "*": valueOp((a, b) => a.value * b.value),
+        "/": valueOp((a, b) => a.value / b.value),
+        "^": valueOp((a, b) => a.value ** b.value),
+        "==": valueOp((a, b) => a.value === b.value),
+        "<": valueOp((a, b) => a.value < b.value),
+        ">": valueOp((a, b) => a.value > b.value),
+        "<=": valueOp((a, b) => a.value <= b.value),
+        ">=": valueOp((a, b) => a.value >= b.value),
+        "not": valueOp((a) => !a.value),
+        "and": valueOp((a, b) => a.value && b.value),
+        "or": valueOp((a, b) => a.value || b.value),
         "if": new Operator(function(condition, then, otherwise) {
             const result = this.interpreter.evaluate(condition.value);
             this.interpreter.stack.pop();
