@@ -236,16 +236,14 @@ export function run(input: string) {
             while (args.length > 0) {
                 const a = args.pop();
                 this.interpreter.stack.push(a);
-                const result = operator.invoke(this.interpreter, op.value);
-                this.interpreter.stack.pop();
-                this.interpreter.stack.pop();
+                operator.invoke(this.interpreter, op.value);
+                const result = this.interpreter.stack.pop();
                 if (isIterable(result)) {
                     throw new Error(`Filter operator "${op.value}" produced more than one return value`);
                 }
                 if (result.value) {
                     this.interpreter.stack.push(a);
                 }
-                console.log(result);
             }
             return this.interpreter.stack.pop();
         }, true),
@@ -268,8 +266,6 @@ export function run(input: string) {
             opTable[name.value] = new Operator(function(...args) {
                 this.interpreter.stack.push(...args);
                 this.interpreter.evaluate(code.value);
-                const l = this.interpreter.stack.length;
-                return l > 0 ? this.interpreter.stack[l - 1] : undefined;
             }, false, arity.value);
         }),
         "del-op": new Operator((name) => {delete opTable[name.value]}),
