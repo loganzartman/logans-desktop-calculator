@@ -276,6 +276,17 @@ export function run(input: string) {
         "store": new Operator((name, val) => {memory[name.value] = val}),
         "load": new Operator((name) => memory[name.value]),
         "delete": new Operator((name) => {delete memory[name.value]}),
+        "pack": new Operator(function() {
+            const packed = new Token({
+                type: 'symbol', 
+                value: this.interpreter.stack.map(x => `${x.value}`).join(" ")
+            });
+
+            while (this.interpreter.stack.length) {
+                this.interpreter.stack.pop();
+            }
+            return packed;
+        }),
         "eval": new Operator(function(str) {this.interpreter.evaluate(str.value);}) 
     };
 
