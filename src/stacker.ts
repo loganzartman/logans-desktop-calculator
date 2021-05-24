@@ -167,13 +167,15 @@ export class Interpreter {
 export function run(input: string) {
     const memory: {[key: string]: Token} = {};
     const valueOp = (lambda: (...args: any[]) => any): Operator => 
-        new Operator((...args) => new Token({type: "symbol", value: lambda(...args)}), false, lambda.length);
+        new Operator((...args) => new Token({type: "symbol", value: lambda(...args.reverse())}), false, lambda.length);
     const opTable: OpTable = {
         "+": valueOp((a, b) => a.value + b.value),
         "-": valueOp((a, b) => a.value - b.value),
         "*": valueOp((a, b) => a.value * b.value),
         "/": valueOp((a, b) => a.value / b.value),
         "^": valueOp((a, b) => a.value ** b.value),
+        "%": valueOp((a, b) => a.value % b.value),
+        "xor": valueOp((a, b) => a.value ^ b.value),
         "==": valueOp((a, b) => a.value === b.value),
         "<": valueOp((a, b) => a.value < b.value),
         ">": valueOp((a, b) => a.value > b.value),
@@ -226,6 +228,27 @@ export function run(input: string) {
             }
             return this.interpreter.stack.pop();
         }, true),
+        "filter": new Operator(function(op, ...args) {
+            const operator = this.interpreter.getOp(op.value) as Operator;
+            if (operator.arity !== 1) { 
+                throw new Error(`A filter operator must accept 1 operand; "${op.value}" requires ${operator.arity}`); 
+            }
+            while (args.length > 0) {
+                const a = args.pop();
+                this.interpreter.stack.push(a);
+                const result = operator.invoke(this.interpreter, op.value);
+                this.interpreter.stack.pop();
+                this.interpreter.stack.pop();
+                if (isIterable(result)) {
+                    throw new Error(`Filter operator "${op.value}" produced more than one return value`);
+                }
+                if (result.value) {
+                    this.interpreter.stack.push(a);
+                }
+                console.log(result);
+            }
+            return this.interpreter.stack.pop();
+        }, true),
         "range": new Operator(function*(start, end, step) {
             if (typeof start.value !== "number" || typeof end.value !== "number" || typeof step.value !== "number") {
                 throw new Error("range operator expects numerical arguments");
@@ -245,6 +268,8 @@ export function run(input: string) {
             opTable[name.value] = new Operator(function(...args) {
                 this.interpreter.stack.push(...args);
                 this.interpreter.evaluate(code.value);
+                const l = this.interpreter.stack.length;
+                return l > 0 ? this.interpreter.stack[l - 1] : undefined;
             }, false, arity.value);
         }),
         "del-op": new Operator((name) => {delete opTable[name.value]}),
