@@ -2,6 +2,33 @@
 *Not your regular four-function*
 ![image](https://user-images.githubusercontent.com/3401573/119804614-5c20f380-be95-11eb-99c5-d368c4a85267.png "Fibonacci")
 
+## Syntax
+```
+// a comment
+
+// add the number 2 to the stack
+2
+
+// add the string "hello" to the stack in three different ways
+"hello" (hello) 'hello
+
+// add the booleans true and false to the stack
+true false
+
+// [spooky] if this doesn't parse as anything else (operator or literal), consider it a string
+hello
+
+// apply the built-in plus operator to the two 2s on top of the stack
+2 2 +
+
+// to pass an operator as an argument, it must be encoded as a string
+1 2 3 '+ map
+
+// a string can be interpreted by evaling it
+2 2 '+ eval
+```
+that's pretty much the whole grammar
+
 ## Sample programs
 ### Two and two
 ```C
@@ -86,3 +113,16 @@ binop 1 (2 n-op) define-op
 1 2 3 (2 ^) unop map
 ```
 *9 4 1*
+
+### Run Javascript
+this is also a bit spooky:
+```C
+// load the value of Math.PI onto the stack
+(Math.PI) js
+
+// compute the sin of pi
+(Math.PI) js (Math.sin(this.pop())) js
+
+// put two things on the stack
+(this.push(1); this.push(2)) js
+```
