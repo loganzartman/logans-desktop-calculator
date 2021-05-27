@@ -29,11 +29,15 @@
 ### Fibonacci
 ```C
 fib 1 (
-  dup
-  (dup 2 swap - fib
-   swap 1 swap - fib +)
-  ()
-  (2 swap <) if
+  dup (2 <)
+  () // base case
+  (
+    dup
+    1 - fib swap 
+    2 - fib
+    +
+  )
+  if
 ) define-op
 
 9 fib
