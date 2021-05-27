@@ -283,7 +283,13 @@ export function run(input: string) {
             }
             return packed;
         }),
-        "eval": new Operator(function(str) {this.interpreter.evaluate(str.value);}) 
+        "eval": new Operator(function(str) {this.interpreter.evaluate(str.value);}),
+        "js": new Operator(function(str) {
+            const result = window.eval(str.value);
+            if (typeof result !== "undefined") {
+                this.interpreter.stack.push(new Token({type: 'symbol', value: result));
+            }
+        })
     };
 
     const ruleSet: RuleSet = [
@@ -310,7 +316,7 @@ export function run(input: string) {
 
         // numbers 
         [/[+-]?\d*\.?[0-9]+([eE][+-]?\d+)?/, result => new Token({type: "symbol", value: Number.parseFloat(result[0])})],
-        
+
         // identifiers
         [/\S+/, result => {
             const match = result[0];
