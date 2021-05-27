@@ -285,7 +285,12 @@ export function run(input: string) {
         }),
         "eval": new Operator(function(str) {this.interpreter.evaluate(str.value);}),
         "js": new Operator(function(str) {
-            const result = window.eval(str.value);
+            const evaluate = (code) => (function(code){return eval(code)}).call({
+                stack: this.interpreter.stack,
+                push: (value) => {this.interpreter.stack.push(new Token({type: 'symbol', value}))},
+                pop: () => this.interpreter.stack.pop().value,
+            },code);
+            const result = evaluate(str.value);
             if (typeof result !== "undefined") {
                 this.interpreter.stack.push(new Token({type: 'symbol', value: result}));
             }
