@@ -1,6 +1,6 @@
 # Logan's Desktop Calculator
 *Not your regular four-function*
-![Fibonacci Program](fib_promo.png "Fibonacci")
+![image](https://user-images.githubusercontent.com/3401573/119804614-5c20f380-be95-11eb-99c5-d368c4a85267.png "Fibonacci")
 
 ## Sample programs
 ### Two and two
