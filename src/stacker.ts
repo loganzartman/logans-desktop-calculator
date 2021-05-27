@@ -287,7 +287,7 @@ export function run(input: string) {
         "js": new Operator(function(str) {
             const result = window.eval(str.value);
             if (typeof result !== "undefined") {
-                this.interpreter.stack.push(new Token({type: 'symbol', value: result));
+                this.interpreter.stack.push(new Token({type: 'symbol', value: result}));
             }
         })
     };
@@ -304,7 +304,7 @@ export function run(input: string) {
 
         // strings with support for escapes
         [/"((?:[^"\\]|\\.)*?)"/, result => {
-            const str = result[2].replace(/\\(.)/g, "$1");
+            const str = result[1].replace(/\\(.)/g, "$1");
             return new Token({type: "symbol", value: str});
         }],
 
