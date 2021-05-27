@@ -184,7 +184,7 @@ export function run(input: string) {
         "not": valueOp((a) => !a.value),
         "and": valueOp((a, b) => a.value && b.value),
         "or": valueOp((a, b) => a.value || b.value),
-        "if": new Operator(function(condition, then, otherwise) {
+        "if": new Operator(function(otherwise, then, condition) {
             const result = this.interpreter.evaluate(condition.value);
             this.interpreter.stack.pop();
             if (result && result.value) {
@@ -247,7 +247,7 @@ export function run(input: string) {
             }
             return this.interpreter.stack.pop();
         }, true),
-        "range": new Operator(function*(start, end, step) {
+        "range": new Operator(function*(step, end, start) {
             if (typeof start.value !== "number" || typeof end.value !== "number" || typeof step.value !== "number") {
                 throw new Error("range operator expects numerical arguments");
             }
