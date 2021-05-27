@@ -297,10 +297,13 @@ export function run(input: string) {
         [/\*+[^*]*\*+(?:[^/*][^*]*\*+)*/, _ => {}],
 
         // strings with support for escapes
-        [/("|')((?:[^\1\\]|\\.)*?)\1/, result => {
+        [/"((?:[^"\\]|\\.)*?)"/, result => {
             const str = result[2].replace(/\\(.)/g, "$1");
             return new Token({type: "symbol", value: str});
         }],
+
+        // symbol literal
+        [/'([^\s']+)/, result => new Token({type: "symbol", value: result[1]})],
 
         // booleans
         [/true|false/, result => new Token({type: "symbol", value: result[0] === "true"})],
