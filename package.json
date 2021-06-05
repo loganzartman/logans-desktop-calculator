@@ -23,6 +23,7 @@
     "webpack-merge": "^4.2.1"
   },
   "dependencies": {
+    "base2048": "^1.0.4",
     "monaco-editor": "^0.24.0"
   }
 }

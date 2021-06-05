@@ -1,4 +1,5 @@
 import * as monaco from "monaco-editor";
+import * as base2048 from "base2048";
 import {run, RE} from "./stacker";
 
 const createEditor = () => {
@@ -93,7 +94,18 @@ const runCode = (code) => {
 
 window.addEventListener("load", function(){
     const editor = createEditor();
+    try {
+        const hash = decodeURIComponent(document.location.hash.substring(1));
+        const bytes = base2048.decode(hash);
+        const code = new TextDecoder().decode(bytes);
+        editor.setValue(code);
+    } catch (e) {
+        console.error(e);
+    }
+
     document.getElementById("input").addEventListener("keyup", () => {
-        runCode(editor.getValue());
+        const code = editor.getValue();
+        runCode(code);
+        window.history.replaceState(undefined, undefined, `#${base2048.encode(new TextEncoder().encode(code))}`);
     }, false);
 }, false);
