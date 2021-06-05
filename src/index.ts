@@ -4,8 +4,12 @@ import {run} from "./stacker";
 const createEditor = () => {
     return monaco.editor.create(document.getElementById("input"), {
         theme: 'vs-dark',
+        fontSize: 22,
+        fontFamily: 'Inconsolata',
+        lineNumbers: 'off',
+        automaticLayout: true,
         minimap: {
-            enabled: false
+            enabled: false,
         }
     });
 }
