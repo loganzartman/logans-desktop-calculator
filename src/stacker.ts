@@ -199,6 +199,16 @@ export class Interpreter {
     }
 }
 
+export const RE = {
+    commentLine: /\/\/.*?$/m,
+    commentMulti: /\/\*+[^*]*\*+(?:[^/*][^*]*\*+)*\//,
+    stringQuotes: /"((?:[^"\\]|\\.)*?)"/,
+    stringSymbol: /'([^\s')]+)/,
+    boolean: /true|false/,
+    number: /[+-]?\d*\.?[0-9]+([eE][+-]?\d+)?/,
+    identifier: /\S+/,
+};
+
 export function run(input: string) {
     const memory: {[key: string]: Token} = {};
     const valueOp = (argNames: Array<string>, lambda: (args) => any): Operator => {
@@ -346,28 +356,28 @@ export function run(input: string) {
         [/\s+/, _ => {}],
 
         // eat single-line comments
-        [/\/\/.*?$/m, _ => {}],
+        [RE.commentLine, _ => {}],
 
         // eat multiline comments
-        [/\/\*+[^*]*\*+(?:[^/*][^*]*\*+)*\//, _ => {}],
+        [RE.commentMulti, _ => {}],
 
         // strings with support for escapes
-        [/"((?:[^"\\]|\\.)*?)"/, result => {
+        [RE.stringQuotes, result => {
             const str = result[1].replace(/\\(.)/g, "$1");
             return new Token({type: "symbol", value: str});
         }],
 
         // symbol literal
-        [/'([^\s']+)/, result => new Token({type: "symbol", value: result[1]})],
+        [RE.stringSymbol, result => new Token({type: "symbol", value: result[1]})],
 
         // booleans
-        [/true|false/, result => new Token({type: "symbol", value: result[0] === "true"})],
+        [RE.boolean, result => new Token({type: "symbol", value: result[0] === "true"})],
 
         // numbers 
-        [/[+-]?\d*\.?[0-9]+([eE][+-]?\d+)?/, result => new Token({type: "symbol", value: Number.parseFloat(result[0])})],
+        [RE.number, result => new Token({type: "symbol", value: Number.parseFloat(result[0])})],
 
         // identifiers
-        [/\S+/, result => {
+        [RE.identifier, result => {
             const match = result[0];
             if (match in opTable) {
                 return new Token({type: "operator", value: match});

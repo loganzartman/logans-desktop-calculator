@@ -1,13 +1,57 @@
 import * as monaco from "monaco-editor";
-import {run} from "./stacker";
+import {run, RE} from "./stacker";
 
 const createEditor = () => {
+    monaco.languages.register({ id: 'ldc' });
+    monaco.languages.setLanguageConfiguration('ldc', {
+        brackets: [["(", ")"]],
+    });
+    monaco.languages.setMonarchTokensProvider('ldc', {
+        tokenizer: {
+            root: [
+                { include: '@whitespace' },
+                [/[()]/, '@brackets'],
+                [RE.boolean, "boolean"],
+                [RE.number, "number"],
+                [RE.stringQuotes, "string"],
+                [RE.stringSymbol, "string"],
+                [RE.identifier, "identifier"],
+            ],
+            whitespace: [
+                [/[ \t\r\n]+/, 'white'],
+                [/\/\*/, 'comment', '@comment'],
+                [/\/\/.*$/, 'comment'],
+            ],
+            comment: [
+                [/[^\/*]+/, 'comment' ],
+                [/\/\*/,    'comment', '@push' ], // nested comment
+                ["\\*/",    'comment', '@pop'  ],
+                [/[\/*]/,   'comment' ]
+            ]
+        }
+    });
+    monaco.editor.defineTheme('theme', {
+        base: 'vs-dark',
+        inherit: true,
+        colors: {
+            'editor.selectionBackground': '#a3ffb830',
+        },
+        rules: [
+            { token: 'number', foreground: 'FF7563' },
+            { token: 'string', foreground: 'a3ffb8' },
+            { token: 'boolean', foreground: 'A763FF' },
+            { token: 'comment', foreground: '888888' },
+        ]
+    });
+
     return monaco.editor.create(document.getElementById("input"), {
-        theme: 'vs-dark',
-        fontSize: 22,
+        theme: 'theme',
+        language: 'ldc',
+        fontSize: 24,
         fontFamily: 'Inconsolata',
         lineNumbers: 'off',
         automaticLayout: true,
+        tabSize: 2,
         minimap: {
             enabled: false,
         }
