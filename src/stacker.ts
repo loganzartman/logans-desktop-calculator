@@ -20,6 +20,16 @@ export class Token {
         const {type, value} = this;
         return new Token({type, value});
     }
+
+    serialize(): string {
+        if (this.type === "operator") {
+            return `${this.value}`;
+        }
+        if (typeof this.value === "string") {
+            return `(${this.value})`;
+        }
+        return `${this.value}`;
+    }
 }
 
 export type RuleSet = [RegExp, (string) => Token | void][];
@@ -83,36 +93,63 @@ export class Tokenizer {
     }
 }
 
-type OperatorResult = Iterable<Token> | Token | void;
-type OperatorFunction = (...args: Token[]) => OperatorResult;
-export class Operator {
-    func: OperatorFunction;
-    arity: number;
-    rest: boolean;
-    protected interpreter: Interpreter;
+class StackWrapper {
+    stack: Array<Token>;
+    caller?: string;
+    private last: Token;
 
-    constructor(func: OperatorFunction, rest = false, arity = func.length) {
-        this.func = func;
-        this.arity = arity;
-        this.rest = rest;
-        this.interpreter = null;
+    constructor(stack: Array<Token>, params: {caller?: string}) {
+        this.stack = stack;
+        this.caller = params.caller;
     }
 
-    protected collectArgs(interpreter: Interpreter, name: string) {
-        // collect positional arguments
-        const args = [];
-        for (let i = 0; i < this.arity; ++i) { 
-            if (interpreter.stack.length === 0) { throw new Error(`Expected ${this.arity} operands for operator "${name}"`); }
-            args.push(interpreter.stack.pop()); 
-        }
-
-        // collect rest arguments
-        if (this.rest) {
-            while (interpreter.stack.length > 0) {
-                args.push(interpreter.stack.pop());
+    pop({ignoreEmpty}: {ignoreEmpty?: boolean} = {}): Token {
+        if (!this.stack.length) {
+            if (ignoreEmpty) {
+                return;
             }
+            throw new Error(`"${this.caller}" expected another item on the stack, but it was empty.\nLast item was: ${this.last.serialize()}`);
         }
-        return args;
+        this.last = this.stack.pop();
+        return this.last;
+    }
+
+    push(...args: Array<Token>) {
+        this.stack.push(...args);
+    }
+
+    popArgs(...argNames: Array<string>): {[k: string]: Token} {
+        if (this.stack.length < argNames.length) {
+            const argsList = argNames.map(name => `"${name}"`).join(", ");
+            throw new Error(`"${this.caller}" expected at least ${argNames.length} items on the stack, but only ${this.stack.length} items were present.\nIt expects arguments ${argsList}.`);
+        }
+        const argObj = {};
+        for (const name of [...argNames.reverse()]) {
+            argObj[name] = this.pop();
+        }
+        return argObj;
+    }
+
+    popAll(): Array<Token> {
+        const result = [];
+        while (this.stack.length) {
+            result.unshift(this.stack.pop());
+        }
+        return result;
+    }
+}
+
+type OperatorResult = Iterable<Token> | Token | void;
+type OperatorFunction = (args: {stack: StackWrapper, interpreter: Interpreter}) => OperatorResult;
+export class Operator {
+    func: OperatorFunction;
+    arity: number | "none";
+    protected interpreter: Interpreter;
+
+    constructor(func: OperatorFunction, arity: number | "none" = "none") {
+        this.func = func;
+        this.arity = arity;
+        this.interpreter = null;
     }
 
     protected pushResult(interpreter: Interpreter, result: OperatorResult) {
@@ -124,10 +161,8 @@ export class Operator {
     }
 
     invoke(interpreter: Interpreter, name: string) {
-        const args = this.collectArgs(interpreter, name);
-        this.interpreter = interpreter;
-        const result = this.func.apply(this, args);
-        this.interpreter = null;
+        const stack = new StackWrapper(interpreter.stack, {caller: name});
+        const result = this.func({stack, interpreter});
         this.pushResult(interpreter, result);
         return result;
     }
@@ -136,7 +171,7 @@ export class Operator {
 export type OpTable = {[operatorName: string]: Operator};
 
 export class Interpreter {
-    stack: Token[] = [];
+    stack: Array<Token> = [];
     opTable: OpTable;
     tokenizer: Tokenizer;
 
@@ -152,7 +187,7 @@ export class Interpreter {
 
     evaluate(str: string): Token {
         const input = this.tokenizer.tokenize(str);
-        for (let tok of input) { 
+        for (const tok of input) { 
             if (tok.type === "symbol") { this.stack.push(tok); }
             if (tok.type === "operator") {
                 const op = this.getOp(tok.value);
@@ -166,88 +201,99 @@ export class Interpreter {
 
 export function run(input: string) {
     const memory: {[key: string]: Token} = {};
-    const valueOp = (lambda: (...args: any[]) => any): Operator => 
-        new Operator((...args) => new Token({type: "symbol", value: lambda(...args.reverse())}), false, lambda.length);
+    const valueOp = (argNames: Array<string>, lambda: (args) => any): Operator => {
+        const opFn = ({stack}) => new Token({
+            type: "symbol", 
+            value: lambda(stack.popArgs(...argNames)),
+        });
+        return new Operator(opFn, argNames.length);
+    }
     const opTable: OpTable = {
-        "+": valueOp((a, b) => a.value + b.value),
-        "-": valueOp((a, b) => a.value - b.value),
-        "*": valueOp((a, b) => a.value * b.value),
-        "/": valueOp((a, b) => a.value / b.value),
-        "^": valueOp((a, b) => a.value ** b.value),
-        "%": valueOp((a, b) => a.value % b.value),
-        "xor": valueOp((a, b) => a.value ^ b.value),
-        "==": valueOp((a, b) => a.value === b.value),
-        "<": valueOp((a, b) => a.value < b.value),
-        ">": valueOp((a, b) => a.value > b.value),
-        "<=": valueOp((a, b) => a.value <= b.value),
-        ">=": valueOp((a, b) => a.value >= b.value),
-        "not": valueOp((a) => !a.value),
-        "and": valueOp((a, b) => a.value && b.value),
-        "or": valueOp((a, b) => a.value || b.value),
-        "if": new Operator(function(otherwise, then, condition) {
-            const result = this.interpreter.evaluate(condition.value);
-            this.interpreter.stack.pop();
+        "noop": new Operator(() => {}),
+        "+": valueOp(["a", "b"], ({a, b}) => a.value + b.value),
+        "-": valueOp(["a", "b"], ({a, b}) => a.value - b.value),
+        "*": valueOp(["a", "b"], ({a, b}) => a.value * b.value),
+        "/": valueOp(["a", "b"], ({a, b}) => a.value / b.value),
+        "^": valueOp(["a", "b"], ({a, b}) => a.value ** b.value),
+        "%": valueOp(["a", "b"], ({a, b}) => a.value % b.value),
+        "xor": valueOp(["a", "b"], ({a, b}) => a.value ^ b.value),
+        "==": valueOp(["a", "b"], ({a, b}) => a.value == b.value),
+        "<": valueOp(["a", "b"], ({a, b}) => a.value < b.value),
+        ">": valueOp(["a", "b"], ({a, b}) => a.value > b.value),
+        ">=": valueOp(["a", "b"], ({a, b}) => a.value >= b.value),
+        "<=": valueOp(["a", "b"], ({a, b}) => a.value <= b.value),
+        "not": valueOp(["a"], ({a}) => !a.value),
+        "and": valueOp(["a", "b"], ({a, b}) => a.value && b.value),
+        "or": valueOp(["a", "b"], ({a, b}) => a.value || b.value),
+        "if": new Operator(({stack, interpreter}) => {
+            const {otherwise, then, condition} = stack.popArgs("condition", "then", "otherwise");
+            interpreter.evaluate(condition.value);
+            const result = stack.pop();
             if (result && result.value) {
-                this.interpreter.evaluate(then.value);
+                interpreter.evaluate(then.value);
             } else {
-                this.interpreter.evaluate(otherwise.value);
+                interpreter.evaluate(otherwise.value);
             }
         }),
-        "print": new Operator((a) => { console.log(a.value); }),
-        "dup": new Operator((a) => [a, a.clone()]),
-        "swap": new Operator((a, b) => [a, b]),
-        "pop": new Operator((_) => {}),
-        "clear": new Operator((...args) => {}, true),
-        "reduce": new Operator(function(op, first, ...args) {
-            const operator = this.interpreter.getOp(op.value) as Operator;
-            if (operator.arity !== 2) { 
+        "print": new Operator(({stack}) => { console.log(stack.pop().value); }),
+        "dup": new Operator(({stack}) => {const x = stack.pop(); return [x, x.clone()];}),
+        "swap": new Operator(({stack}) => {const {a, b} = stack.popArgs("a", "b"); return [b, a];}),
+        "over": new Operator(({stack}) => {const {a, b} = stack.popArgs("a", "b"); return [a, b, a.clone()];}),
+        "pick": new Operator(({stack}) => {const {a, b, c} = stack.popArgs("a", "b", "c"); return [a, b, c, a.clone()];}),
+        "pop": new Operator(({stack}) => {stack.pop({ignoreEmpty: true});}),
+        "clear": new Operator(({stack}) => {stack.popAll()}),
+        "reduce": new Operator(({stack, interpreter}) => {
+            const {op, first} = stack.popArgs("first", "op");
+            const rest = stack.popAll();
+            const operator = interpreter.getOp(op.value) as Operator;
+            if (operator.arity !== 2 && operator.arity !== "none") { 
                 throw new Error(`A reduce operator must accept 2 operands; "${op.value}" requires ${operator.arity}`); 
             }
-            this.interpreter.stack.push(first);
-            for (let a of args) {
-                this.interpreter.stack.push(a);
-                const result = operator.invoke(this.interpreter, op.value);
+            stack.push(first);
+            for (const a of rest) {
+                stack.push(a);
+                const result = operator.invoke(interpreter, op.value);
                 if (isIterable(result)) {
                     throw new Error(`Reduce operator "${op.value}" produced more than one return value`);
                 }
             }
-            return this.interpreter.stack.pop();
-        }, true),
-        "map": new Operator(function(op, ...args) {
-            const operator = this.interpreter.getOp(op.value) as Operator;
-            if (operator.arity !== 1) { 
+            return stack.pop();
+        }),
+        "map": new Operator(({stack, interpreter}) => {
+            const {op} = stack.popArgs("op");
+            const rest = stack.popAll();
+            const operator = interpreter.getOp(op.value);
+            if (operator.arity !== 1 && operator.arity !== "none") { 
                 throw new Error(`A map operator must accept 1 operand; "${op.value}" requires ${operator.arity}`); 
             }
-            while (args.length > 0) {
-                const a = args.pop();
-                this.interpreter.stack.push(a);
-                const result = operator.invoke(this.interpreter, op.value);
-                if (isIterable(result)) {
-                    throw new Error(`Map operator "${op.value}" produced more than one return value`);
-                }
+            for (const a of rest) {
+                stack.push(a);
+                operator.invoke(interpreter, op.value);
             }
-            return this.interpreter.stack.pop();
-        }, true),
-        "filter": new Operator(function(op, ...args) {
-            const operator = this.interpreter.getOp(op.value) as Operator;
-            if (operator.arity !== 1) { 
+            return stack.pop({ignoreEmpty: true});
+        }),
+        "filter": new Operator(({stack, interpreter}) => {
+            const {op} = stack.popArgs("op");
+            const rest = stack.popAll();
+            const operator = interpreter.getOp(op.value);
+            if (operator.arity !== 1 && operator.arity !== "none") { 
                 throw new Error(`A filter operator must accept 1 operand; "${op.value}" requires ${operator.arity}`); 
             }
-            while (args.length > 0) {
-                const a = args.pop();
-                this.interpreter.stack.push(a);
-                operator.invoke(this.interpreter, op.value);
-                const result = this.interpreter.stack.pop();
+            for (const a of rest) {
+                stack.push(a);
+                operator.invoke(interpreter, op.value);
+                const result = stack.pop();
                 if (isIterable(result)) {
                     throw new Error(`Filter operator "${op.value}" produced more than one return value`);
                 }
                 if (result.value) {
-                    this.interpreter.stack.push(a);
+                    stack.push(a);
                 }
             }
-            return this.interpreter.stack.pop();
-        }, true),
-        "range": new Operator(function*(step, end, start) {
+            return stack.pop();
+        }),
+        "range": new Operator(({stack}) => {
+            const {step, end, start} = stack.popArgs("start", "end", "step");
             if (typeof start.value !== "number" || typeof end.value !== "number" || typeof step.value !== "number") {
                 throw new Error("range operator expects numerical arguments");
             }
@@ -255,50 +301,42 @@ export function run(input: string) {
             const steps = Math.abs(end.value - start.value) / step.value;
             let val = start.value;
             for (let i = 0; i < steps; ++i) {
-                yield new Token({type: "symbol", value: val});
+                stack.push(new Token({type: "symbol", value: val}));
                 val += dir * step.value;
             }
         }),
-        "alias-op": new Operator((a, b) => {
-            opTable[a.value] = opTable[b.value];
-        }),
-        "define-op": new Operator((code, arity, name) => {
-            opTable[name.value] = new Operator(function(...args) {
-                this.interpreter.stack.push(...args);
-                this.interpreter.evaluate(code.value);
-            }, false, arity.value);
-        }),
-        "del-op": new Operator((name) => {delete opTable[name.value]}),
-        "store": new Operator((name, val) => {memory[name.value] = val}),
-        "load": new Operator((name) => memory[name.value]),
-        "delete": new Operator((name) => {delete memory[name.value]}),
-        "pack": new Operator(function() {
-            const packed = new Token({
-                type: 'symbol', 
-                value: this.interpreter.stack.map(x => {
-                    const value = x.value;
-                    if (typeof value === "string") {
-                        return `(${value})`;
-                    }
-                    return `${value}`;
-                }).join(" ")
-            });
-
-            while (this.interpreter.stack.length) {
-                this.interpreter.stack.pop();
+        "alias-op": new Operator(({stack}) => {const {a, b} = stack.popArgs("a", "b"); opTable[b.value] = opTable[a.value];}),
+        "define-op": new Operator(({stack, interpreter}) => {
+            const {code, arity, name} = stack.popArgs("name", "arity", "code");
+            if (typeof arity.value !== "number" && arity.value !== "none") {
+                throw new Error(`Invalid arity value ${arity.value}`);
             }
-            return packed;
+            opTable[name.value] = new Operator(() => {
+                interpreter.evaluate(code.value);
+            }, arity.value);
         }),
-        "eval": new Operator(function(str) {this.interpreter.evaluate(str.value);}),
-        "js": new Operator(function(str) {
+        "del-op": new Operator(({stack}) => {delete opTable[stack.pop().value];}),
+        "store": new Operator(({stack}) => {const {val, name} = stack.popArgs("val", "name"); memory[name.value] = val;}),
+        "load": new Operator(({stack}) => memory[stack.pop().value]),
+        "delete": new Operator(({stack}) => {delete memory[stack.pop().value]}),
+        "pack": new Operator(({stack}) => {
+            const all = stack.popAll();
+            return new Token({
+                type: 'symbol', 
+                value: all.map(x => x.serialize()).join(" ")
+            });
+        }),
+        "eval": new Operator(({stack, interpreter}) => {interpreter.evaluate(stack.pop().value);}),
+        "js": new Operator(({stack}) => {
+            const str = stack.pop();
             const evaluate = (code) => (function(code){return eval(code)}).call({
-                stack: this.interpreter.stack,
-                push: (value) => {this.interpreter.stack.push(new Token({type: 'symbol', value}))},
-                pop: () => this.interpreter.stack.pop().value,
+                stack,
+                push: (...values) => {values.forEach(value => stack.push(new Token({type: 'symbol', value})))},
+                pop: () => stack.pop().value,
             },code);
             const result = evaluate(str.value);
             if (typeof result !== "undefined") {
-                this.interpreter.stack.push(new Token({type: 'symbol', value: result}));
+                stack.push(new Token({type: 'symbol', value: result}));
             }
         })
     };
