@@ -275,7 +275,13 @@ export function run(input: string) {
         "pack": new Operator(function() {
             const packed = new Token({
                 type: 'symbol', 
-                value: this.interpreter.stack.map(x => `${x.value}`).join(" ")
+                value: this.interpreter.stack.map(x => {
+                    const value = x.value;
+                    if (typeof value === "string") {
+                        return `(${value})`;
+                    }
+                    return `${value}`;
+                }).join(" ")
             });
 
             while (this.interpreter.stack.length) {
