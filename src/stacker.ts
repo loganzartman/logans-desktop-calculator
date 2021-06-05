@@ -311,7 +311,7 @@ export function run(input: string) {
         [/\/\/.*?$/m, _ => {}],
 
         // eat multiline comments
-        [/\*+[^*]*\*+(?:[^/*][^*]*\*+)*/, _ => {}],
+        [/\/\*+[^*]*\*+(?:[^/*][^*]*\*+)*\//, _ => {}],
 
         // strings with support for escapes
         [/"((?:[^"\\]|\\.)*?)"/, result => {
