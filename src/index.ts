@@ -1,11 +1,18 @@
-import * as monaco from "monaco-editor";
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js';
 import * as base2048 from "base2048";
 import {run, RE} from "./stacker";
 
 const createEditor = () => {
     monaco.languages.register({ id: 'ldc' });
     monaco.languages.setLanguageConfiguration('ldc', {
-        brackets: [["(", ")"]],
+        brackets: [["(", ")"], ['"', '"']],
+        wordPattern: /[^()\s]+/,
+        folding: {
+            markers: {
+                start: /[(]/, 
+                end: /[)].*\n/,
+            }
+        }
     });
     monaco.languages.setMonarchTokensProvider('ldc', {
         tokenizer: {
@@ -28,7 +35,7 @@ const createEditor = () => {
                 [/\/\*/,    'comment', '@push' ], // nested comment
                 ["\\*/",    'comment', '@pop'  ],
                 [/[\/*]/,   'comment' ]
-            ]
+            ],
         }
     });
     monaco.editor.defineTheme('theme', {
@@ -42,6 +49,7 @@ const createEditor = () => {
             { token: 'string', foreground: 'a3ffb8' },
             { token: 'boolean', foreground: 'A763FF' },
             { token: 'comment', foreground: '888888' },
+            { token: 'delimiter.parenthesis', foreground: 'a3ffb8' }
         ]
     });
 

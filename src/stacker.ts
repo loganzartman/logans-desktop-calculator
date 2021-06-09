@@ -206,7 +206,7 @@ export const RE = {
     stringSymbol: /'([^\s')]+)/,
     boolean: /true|false/,
     number: /[+-]?\d*\.?[0-9]+([eE][+-]?\d+)?/,
-    identifier: /\S+/,
+    identifier: /[^\s()]+/,
 };
 
 export function run(input: string) {
