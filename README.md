@@ -24,8 +24,15 @@ hello
 // to pass an operator as an argument, it must be encoded as a string
 1 2 3 '+ map
 
-// a string can be interpreted by evaling it
+// a string can be interpreted by eval'ing it
 2 2 '+ eval
+
+// create a "local" name
+// all occurrences of @name are replaced with a unique string each time the code is evaluated
+@x                     // @x:0
+(@x @x) eval           // @x:1 @x:1
+'x 0 (@x) define-op
+x x                    // @x:2 @x:3
 ```
 that's pretty much the whole grammar
 

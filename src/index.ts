@@ -23,6 +23,7 @@ const createEditor = () => {
                 [RE.number, "number"],
                 [RE.stringQuotes, "string"],
                 [RE.stringSymbol, "string"],
+                [RE.localName, "identifier.local"],
                 [RE.identifier, "identifier"],
             ],
             whitespace: [
@@ -49,7 +50,8 @@ const createEditor = () => {
             { token: 'string', foreground: 'a3ffb8' },
             { token: 'boolean', foreground: 'A763FF' },
             { token: 'comment', foreground: '888888' },
-            { token: 'delimiter.parenthesis', foreground: 'a3ffb8' }
+            { token: 'delimiter.parenthesis', foreground: 'a3ffb8' },
+            { token: 'identifier.local', foreground: 'CCAF9B' },
         ]
     });
 
@@ -73,11 +75,12 @@ const runCode = (code) => {
     try {
         const result = run(code);
         output.innerHTML = "";
-        result.interpreter.stack.reverse().forEach(t => {
+        result.interpreter.stack.reverse().forEach(token => {
             const node = document.createElement("div");
-            node.textContent = t.value;
+            node.textContent = token.value;
             node.classList.add("stack-item");
-            node.classList.add(`token--${typeof t.value}`);
+            node.classList.add(`token-${token.type}`);
+            node.classList.add(`token-${token.type}--${typeof token.value}`);
             output.appendChild(node);
         });
         registers.innerHTML = "";
@@ -89,7 +92,9 @@ const runCode = (code) => {
             label.textContent = `${k}`;
             const value = document.createElement("div");
             value.classList.add('register-value');
-            value.classList.add(`token--${typeof result.memory[k].value}`);
+            const token = result.memory[k];
+            value.classList.add(`token-${token.type}`);
+            value.classList.add(`token-${token.type}--${typeof token.value}`);
             value.textContent = `${result.memory[k].value}`;
             node.appendChild(label);
             node.appendChild(value);

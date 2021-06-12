@@ -1,11 +1,25 @@
 export class InputExhausted extends Error {}
 export class UnknownOperator extends Error {}
+const absurd = (value: never, msg?: string) => {
+    throw new Error(msg ?? "Invalid value");
+}
+
+export const RE = {
+    commentLine: /\/\/.*?$/m,
+    commentMulti: /\/\*+[^*]*\*+(?:[^/*][^*]*\*+)*\//,
+    stringQuotes: /"((?:[^"\\]|\\.)*?)"/,
+    stringSymbol: /'([^\s')]+)/,
+    boolean: /true|false/,
+    number: /[+-]?\d*\.?[0-9]+([eE][+-]?\d+)?/,
+    identifier: /[^\s()]+/,
+    localName: /@[^\s()]+/,
+};
 
 function isIterable(x): x is Iterable<any> {
     return x && Symbol.iterator in x;
 }
 
-export type TokenType = "symbol" | "operator";
+export type TokenType = "symbol" | "operator" | "local";
 
 export class Token {
     type: TokenType;
@@ -174,10 +188,12 @@ export class Interpreter {
     stack: Array<Token> = [];
     opTable: OpTable;
     tokenizer: Tokenizer;
+    localsUid: number;
 
     constructor(opTable: OpTable, tokenizer: Tokenizer) {
         this.opTable = opTable;
         this.tokenizer = tokenizer;
+        this.localsUid = 0;
     }
 
     getOp(name: string) {
@@ -186,28 +202,26 @@ export class Interpreter {
     }
 
     evaluate(str: string): Token {
+        const uid = this.localsUid++;
         const input = this.tokenizer.tokenize(str);
         for (const tok of input) { 
             if (tok.type === "symbol") { this.stack.push(tok); }
-            if (tok.type === "operator") {
+            else if (tok.type === "operator") {
                 const op = this.getOp(tok.value);
                 op.invoke(this, tok.value);
+            }
+            else if (tok.type === "local") {
+                const name = `${tok.value}:${uid}`;
+                this.stack.push(new Token({type: "symbol", value: name}));
+            }
+            else {
+                absurd(tok.type); 
             }
         }
         if (this.stack.length === 0) { return undefined; }
         return this.stack[this.stack.length - 1];
     }
 }
-
-export const RE = {
-    commentLine: /\/\/.*?$/m,
-    commentMulti: /\/\*+[^*]*\*+(?:[^/*][^*]*\*+)*\//,
-    stringQuotes: /"((?:[^"\\]|\\.)*?)"/,
-    stringSymbol: /'([^\s')]+)/,
-    boolean: /true|false/,
-    number: /[+-]?\d*\.?[0-9]+([eE][+-]?\d+)?/,
-    identifier: /[^\s()]+/,
-};
 
 export function run(input: string) {
     const memory: {[key: string]: Token} = {};
@@ -369,6 +383,9 @@ export function run(input: string) {
 
         // symbol literal
         [RE.stringSymbol, result => new Token({type: "symbol", value: result[1]})],
+
+        // local literal
+        [RE.localName, result => new Token({type: "local", value: result[0]})],
 
         // booleans
         [RE.boolean, result => new Token({type: "symbol", value: result[0] === "true"})],
