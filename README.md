@@ -140,3 +140,34 @@ this is also a bit spooky:
 // put two things on the stack
 (this.push(1); this.push(2)) js
 ```
+
+### Infix interpreter (very basic)
+```
+typeof 1 ((typeof this.pop()) js) define-op
+0 'stid store
+stack-save 0 (pack 'stid load dup 1 + 'stid store 'st- swap + store) define-op
+stack-restore 0 ('stid load 1 - dup 'stid store 'st- swap + load eval) define-op
+
+i 1 (
+  @expr store
+  '_ @op store
+  stack-save
+  @fn 1 (
+    dup (typeof 'string ==)
+    (@op store)
+    (
+      (@op load '_ ==)
+      ()
+      (@op load eval)
+      if
+    )
+    if
+  ) define-op
+  @expr load eval
+  (@fn) map @result store
+  stack-restore
+  @result load
+) define-op
+
+(2 '+ 3 '+ 20 '* 5 '* (1 '+ 1) i) i  // 250 
+```
