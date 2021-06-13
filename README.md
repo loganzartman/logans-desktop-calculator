@@ -9,13 +9,18 @@
 // add the number 2 to the stack
 2
 
-// add the string "hello" to the stack in three different ways
-"hello" (hello) 'hello
-
 // add the booleans true and false to the stack
 true false
 
-// [spooky] if this doesn't parse as anything else (operator or literal), consider it a string
+// add the string "hello" to the stack in three different ways.
+"hello" (hello) 'hello
+
+// strings can be evaluated as code with `eval`.
+// (parentheses strings) are easily nestable and typically used to store code.
+// they also interact with local names—see the later section.
+(2 2 +) eval  // 4
+
+// [spooky] if a word doesn't parse as anything else (operator or literal), it's considered a string
 hello
 
 // apply the built-in plus operator to the two 2s on top of the stack
@@ -24,15 +29,17 @@ hello
 // to pass an operator as an argument, it must be encoded as a string
 1 2 3 '+ map
 
-// a string can be interpreted by eval'ing it
-2 2 '+ eval
-
 // create a "local" name
 // all occurrences of @name are replaced with a unique string each time the code is evaluated
-@x                     // @x:0
-(@x @x) eval           // @x:1 @x:1
-'x 0 (@x) define-op
-x x                    // @x:2 @x:3
+@x                      // @x@0
+(@y @y) eval            // @y@1 @y@1
+'get-z 0 (@z) define-op
+get-z get-z             // @z@2 @z@3
+
+// locals are substituted into parentheses-strings if they are referenced outside them
+@x (@x)   // @x@0 @x@0
+(@y)      // @y
+(@y) eval // @y@1
 ```
 that's pretty much the whole grammar
 

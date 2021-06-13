@@ -12,7 +12,7 @@ export const RE = {
     boolean: /true|false/,
     number: /[+-]?\d*\.?[0-9]+([eE][+-]?\d+)?/,
     identifier: /[^\s()]+/,
-    localName: /@[^\s()]+/,
+    localName: /@[^@\s()]+/,
 };
 
 function isIterable(x): x is Iterable<any> {
@@ -21,18 +21,25 @@ function isIterable(x): x is Iterable<any> {
 
 export type TokenType = "symbol" | "operator" | "local";
 
+type TokenArgs = {type: TokenType, value: any, location?: number, length?: number, tags?: Set<string>};
 export class Token {
     type: TokenType;
     value: any;
+    location?: number;
+    length?: number;
+    tags?: Set<string>;
 
-    constructor({type, value}: {type: TokenType, value: any}) {
+    constructor({type, value, location, length, tags}: TokenArgs) {
         this.type = type;
         this.value = value;
+        this.location = location;
+        this.length = length;
+        this.tags = tags;
     }
 
-    clone(): Token {
-        const {type, value} = this;
-        return new Token({type, value});
+    clone(args?: Partial<TokenArgs>): Token {
+        const {type, value, location, length, tags} = {...this, ...args};
+        return new Token({type, value, location, length, tags});
     }
 
     serialize(): string {
@@ -46,7 +53,8 @@ export class Token {
     }
 }
 
-export type RuleSet = [RegExp, (string) => Token | void][];
+type RuleMatchConsumer = (args: {match: string, location: number, length: number}) => Token | void;
+export type RuleSet = [RegExp, RuleMatchConsumer][];
 
 export class Tokenizer {
     ruleSet: RuleSet;
@@ -55,38 +63,47 @@ export class Tokenizer {
         this.ruleSet = ruleSet;
     }
 
-    private tokenizeParen(input: string): [Token, string] {
+    private tokenizeParen(input: string, location: number): [Token, number] {
+        const startLocation = location;
         let depth = 0;
-        let index = 0;
         do {
-            if (index >= input.length) {
+            if (location >= input.length) {
                 throw new Error("Unmatched parentheses");
             }
-            if (input[index] === "(") {
+            if (input[location] === "(") {
                 ++depth;
-            } else if (input[index] === ")") {
+            } else if (input[location] === ")") {
                 --depth;
             }
-            ++index;
+            ++location;
         } while (depth > 0);
-        const val = input.slice(1, index - 1);
-        return [new Token({type: "symbol", value: val}), input.slice(index)];
+        const val = input.slice(startLocation + 1, location - 1);
+        const token = new Token({
+            type: "symbol", 
+            value: val, 
+            location: startLocation + 1, 
+            length: val.length, 
+            tags: new Set(["string", "code"]),
+        });
+        return [token, location];
     }
 
     *tokenize(input: string): Iterable<Token> {
-        while (input.length > 0) {
-            if (input[0] === "(") {
-                const [tok, newInput] = this.tokenizeParen(input);
-                input = newInput;
+        let location = 0;
+        while (location < input.length) {
+            if (input[location] === "(") {
+                const [tok, newLocation] = this.tokenizeParen(input, location);
+                location = newLocation;
                 yield tok;
                 continue;
             }
 
+            const rest = input.substring(location);
             let longestLength = 0;
             let bestMatch = null;
-            let bestRule = null;
+            let bestRule: RuleMatchConsumer | null = null;
             for (let [pattern, rule] of this.ruleSet) {
-                const result = pattern.exec(input);
+                const result = pattern.exec(rest);
                 if (!result || result.index !== 0) { continue; }
 
                 const length = result[0].length;
@@ -97,13 +114,38 @@ export class Tokenizer {
                 }
             }
             if (longestLength === 0) { 
-                throw new Error(`Unrecognized grammar starting here: ${input.slice(0, 32)}`); 
+                throw new Error(`Unrecognized grammar starting here: ${rest.slice(0, 32)}`); 
             }
             
-            const token = bestRule(bestMatch);
+            const token = bestRule({match: bestMatch, location, length: longestLength});
             if (token) { yield token; }
-            input = input.slice(longestLength);
+            location += longestLength;
         }
+    }
+
+    edit(input: string, tokenReplacer: (token: Token) => string | null, opts?: {deep: boolean}): string {
+        let result = input;
+        let locationOffset = 0;
+        for (const tok of this.tokenize(input)) {
+            if (tok.location === null || tok.length === null) { continue; }
+
+            const replaceStart = locationOffset + tok.location;
+            const replaceEnd = replaceStart + tok.length;
+
+            let replaceWith = null;
+            if (opts?.deep && tok.tags?.has("code")) {
+                const sub = result.substring(replaceStart, replaceEnd);
+                replaceWith = this.edit(sub, tokenReplacer, opts);
+            } else {
+                replaceWith = tokenReplacer(tok);
+            }
+
+            if (replaceWith === null) { continue; }
+
+            result = result.substring(0, replaceStart) + replaceWith + result.substring(replaceEnd);
+            locationOffset += replaceWith.length - tok.length;
+        }
+        return result;
     }
 }
 
@@ -201,18 +243,33 @@ export class Interpreter {
         throw new Error(`"${name}" is not an operator`);
     }
 
-    evaluate(str: string): Token {
+    evaluate(input: string): Token {
+        // substitute locals
         const uid = this.localsUid++;
-        const input = this.tokenizer.tokenize(str);
-        for (const tok of input) { 
+        const locals = new Set();
+        for (const tok of this.tokenizer.tokenize(input)) {
+            if (tok.type === "local") {
+                locals.add(tok.value);
+            }
+        }
+        input = this.tokenizer.edit(input, (tok) => {
+            if (tok.type === "local" && locals.has(tok.value)) {
+                const fullName = `${tok.value}@${uid}`;
+                locals[tok.value] = fullName;
+                return fullName;
+            }
+            return null;
+        }, {deep: true});
+
+        // eval
+        for (const tok of this.tokenizer.tokenize(input)) { 
             if (tok.type === "symbol") { this.stack.push(tok); }
             else if (tok.type === "operator") {
                 const op = this.getOp(tok.value);
                 op.invoke(this, tok.value);
             }
             else if (tok.type === "local") {
-                const name = `${tok.value}:${uid}`;
-                this.stack.push(new Token({type: "symbol", value: name}));
+                throw new Error(`Internal error: unreplaced local ${tok.value}`);
             }
             else {
                 absurd(tok.type); 
@@ -376,30 +433,71 @@ export function run(input: string) {
         [RE.commentMulti, _ => {}],
 
         // strings with support for escapes
-        [RE.stringQuotes, result => {
-            const str = result[1].replace(/\\(.)/g, "$1");
-            return new Token({type: "symbol", value: str});
+        [RE.stringQuotes, ({match, location, length}) => {
+            const str = match[1].replace(/\\(.)/g, "$1");
+            return new Token({
+                type: "symbol", 
+                value: str, 
+                location, 
+                length,
+                tags: new Set(["string"]),
+            });
         }],
 
         // symbol literal
-        [RE.stringSymbol, result => new Token({type: "symbol", value: result[1]})],
+        [RE.stringSymbol, ({match, location, length}) => new Token({
+            type: "symbol", 
+            value: match[1], 
+            location, 
+            length,
+            tags: new Set(["string"]),
+        })],
 
         // local literal
-        [RE.localName, result => new Token({type: "local", value: result[0]})],
+        [RE.localName, ({match, location, length}) => new Token({
+            type: "local", 
+            value: match[0], 
+            location, 
+            length,
+            tags: new Set(["string"]),
+        })],
 
         // booleans
-        [RE.boolean, result => new Token({type: "symbol", value: result[0] === "true"})],
+        [RE.boolean, ({match, location, length}) => new Token({
+            type: "symbol", 
+            value: match[0] === "true", 
+            location, 
+            length,
+            tags: new Set(["boolean"]),
+        })],
 
         // numbers 
-        [RE.number, result => new Token({type: "symbol", value: Number.parseFloat(result[0])})],
+        [RE.number, ({match, location, length}) => new Token({
+            type: "symbol", 
+            value: Number.parseFloat(match[0]), 
+            location, 
+            length,
+            tags: new Set(["number"]),
+        })],
 
         // identifiers
-        [RE.identifier, result => {
-            const match = result[0];
-            if (match in opTable) {
-                return new Token({type: "operator", value: match});
+        [RE.identifier, ({match, location, length}) => {
+            const value = match[0];
+            if (value in opTable) {
+                return new Token({
+                    type: "operator", 
+                    value, 
+                    location, 
+                    length,
+                });
             } else {
-                return new Token({type: "symbol", value: match});
+                return new Token({
+                    type: "symbol", 
+                    value, 
+                    location, 
+                    length,
+                    tags: new Set(["string"]),
+                });
             }
         }]
     ];
