@@ -141,6 +141,24 @@ this is also a bit spooky:
 (this.push(1); this.push(2)) js
 ```
 
+### Implement a `repeat` keyword
+```
+'repeat 2 (
+  @n store @code store
+  (@n load 0 >)
+  (
+    @code load eval
+    @code load @n load 1 - repeat
+  )
+  () if
+  @n delete @code delete
+) define-op
+
+('hello) 5 repeat
+(pop) 2 repeat
+```
+*hello hello hello*
+
 ### Infix interpreter (very basic)
 ```
 typeof 1 ((typeof this.pop()) js) define-op
@@ -169,5 +187,6 @@ i 1 (
   @result load
 ) define-op
 
-(2 '+ 3 '+ 20 '* 5 '* (1 '+ 1) i) i  // 250 
+(2 '+ 3 '+ 20 '* 5 '* (1 '+ 1) i) i
 ```
+*250* (no operator precedence)
