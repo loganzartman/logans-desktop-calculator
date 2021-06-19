@@ -159,6 +159,10 @@ class StackWrapper {
         this.caller = params.caller;
     }
 
+    get length() {
+        return this.stack.length;
+    }
+
     pop({ignoreEmpty}: {ignoreEmpty?: boolean} = {}): Token {
         if (!this.stack.length) {
             if (ignoreEmpty) {
@@ -324,51 +328,48 @@ export function run(input: string) {
         "pop": new Operator(({stack}) => {stack.pop({ignoreEmpty: true});}),
         "clear": new Operator(({stack}) => {stack.popAll()}),
         "reduce": new Operator(({stack, interpreter}) => {
-            const {op, first} = stack.popArgs("first", "op");
-            const rest = stack.popAll();
-            const operator = interpreter.getOp(op.value) as Operator;
-            if (operator.arity !== 2 && operator.arity !== "none") { 
-                throw new Error(`A reduce operator must accept 2 operands; "${op.value}" requires ${operator.arity}`); 
+            const {op} = stack.popArgs("op");
+            const all = stack.popAll();
+            let result;
+            if (all.length > 0) {
+                result = all.shift();
             }
-            stack.push(first);
-            for (const a of rest) {
-                stack.push(a);
-                const result = operator.invoke(interpreter, op.value);
-                if (isIterable(result)) {
-                    throw new Error(`Reduce operator "${op.value}" produced more than one return value`);
+            while (all.length > 0) {
+                const next = all.shift();
+                stack.push(result);
+                stack.push(next);
+                interpreter.evaluate(op.value);
+                if (stack.length > 1) {
+                    throw new Error(`Reduce operation ${op.serialize()} left more than one value on the stack.`);
                 }
+                result = stack.pop();
             }
-            return stack.pop();
+            return result;
         }),
         "map": new Operator(({stack, interpreter}) => {
             const {op} = stack.popArgs("op");
-            const rest = stack.popAll();
-            const operator = interpreter.getOp(op.value);
-            if (operator.arity !== 1 && operator.arity !== "none") { 
-                throw new Error(`A map operator must accept 1 operand; "${op.value}" requires ${operator.arity}`); 
+            const all = stack.popAll();
+            while (all.length > 0) {
+                stack.push(all.shift());
+                interpreter.evaluate(op.value);
             }
-            for (const a of rest) {
-                stack.push(a);
-                operator.invoke(interpreter, op.value);
-            }
-            return stack.pop({ignoreEmpty: true});
         }),
         "filter": new Operator(({stack, interpreter}) => {
             const {op} = stack.popArgs("op");
-            const rest = stack.popAll();
-            const operator = interpreter.getOp(op.value);
-            if (operator.arity !== 1 && operator.arity !== "none") { 
-                throw new Error(`A filter operator must accept 1 operand; "${op.value}" requires ${operator.arity}`); 
-            }
-            for (const a of rest) {
-                stack.push(a);
-                operator.invoke(interpreter, op.value);
-                const result = stack.pop();
-                if (isIterable(result)) {
-                    throw new Error(`Filter operator "${op.value}" produced more than one return value`);
+            const all = stack.popAll();
+            while (all.length > 0) {
+                const value = all.shift();
+                stack.push(value.clone());
+                const result = interpreter.evaluate(op.value);
+                if (stack.length === 0) {
+                    throw new Error(`Filter operation ${op.serialize()} didn't leave a value on the stack.`);
                 }
+                if (isIterable(result)) {
+                    throw new Error(`Filter operation ${op.serialize()} added too many values to the stack.`);
+                }
+                stack.pop();
                 if (result.value) {
-                    stack.push(a);
+                    stack.push(value);
                 }
             }
             return stack.pop();
