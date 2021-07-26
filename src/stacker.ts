@@ -1,5 +1,3 @@
-export class InputExhausted extends Error {}
-export class UnknownOperator extends Error {}
 const absurd = (value: never, msg?: string) => {
     throw new Error(msg ?? "Invalid value");
 }
@@ -53,6 +51,25 @@ export class Token {
     }
 }
 
+type InterpreterErrorArgs = undefined | {token: Token} | {location: number, length: number};
+export class InterpreterError extends Error {
+    token?: Token;
+    location?: number;
+    length?: number;
+    constructor(message: string, args?: InterpreterErrorArgs) {
+        super(message);
+        if ("token" in args) {
+            this.token = args.token;
+            this.location = args.token.location;
+            this.length = args.token.length;
+        }
+        if ("location" in args) {
+            this.location = args.location;
+            this.length = args.length;
+        }
+    }
+}
+
 type RuleMatchConsumer = (args: {match: string, location: number, length: number}) => Token | void;
 export type RuleSet = [RegExp, RuleMatchConsumer][];
 
@@ -68,7 +85,7 @@ export class Tokenizer {
         let depth = 0;
         do {
             if (location >= input.length) {
-                throw new Error("Unmatched parentheses");
+                throw new InterpreterError("Unmatched parentheses", {location: startLocation, length: 1});
             }
             if (input[location] === "(") {
                 ++depth;
@@ -88,7 +105,7 @@ export class Tokenizer {
         return [token, location];
     }
 
-    *tokenize(input: string): Iterable<Token> {
+    *tokenize(input: string, {locationOffset=0}: {locationOffset?: number} = {}): Iterable<Token> {
         let location = 0;
         while (location < input.length) {
             if (input[location] === "(") {
@@ -113,11 +130,15 @@ export class Tokenizer {
                     bestRule = rule;
                 }
             }
+            const absoluteLocation = location + locationOffset;
             if (longestLength === 0) { 
-                throw new Error(`Unrecognized grammar starting here: ${rest.slice(0, 32)}`); 
+                throw new InterpreterError(
+                    `Unrecognized grammar starting here: ${rest.slice(0, 32)}`, 
+                    {location: absoluteLocation, length: 1}
+                ); 
             }
             
-            const token = bestRule({match: bestMatch, location, length: longestLength});
+            const token = bestRule({match: bestMatch, location: absoluteLocation, length: longestLength});
             if (token) { yield token; }
             location += longestLength;
         }
@@ -151,10 +172,10 @@ export class Tokenizer {
 
 class StackWrapper {
     stack: Array<Token>;
-    caller?: string;
+    caller: Token;
     private last: Token;
 
-    constructor(stack: Array<Token>, params: {caller?: string}) {
+    constructor(stack: Array<Token>, params: {caller: Token}) {
         this.stack = stack;
         this.caller = params.caller;
     }
@@ -168,7 +189,11 @@ class StackWrapper {
             if (ignoreEmpty) {
                 return;
             }
-            throw new Error(`"${this.caller}" expected another item on the stack, but it was empty.\nLast item was: ${this.last.serialize()}`);
+            let msg = `"${this.caller.serialize()}" expected another item on the stack, but it was empty.`;
+            if (this.last) {
+                msg = `${msg}\nLast item was: ${this.last.serialize()}`
+            };
+            throw new InterpreterError(msg, {token: this.caller});
         }
         this.last = this.stack.pop();
         return this.last;
@@ -181,7 +206,10 @@ class StackWrapper {
     popArgs(...argNames: Array<string>): {[k: string]: Token} {
         if (this.stack.length < argNames.length) {
             const argsList = argNames.map(name => `"${name}"`).join(", ");
-            throw new Error(`"${this.caller}" expected at least ${argNames.length} items on the stack, but only ${this.stack.length} items were present.\nIt expects arguments ${argsList}.`);
+            throw new InterpreterError(
+                `"${this.caller.serialize()}" expected at least ${argNames.length} items on the stack, but only ${this.stack.length} items were present.\nIt expects arguments ${argsList}.`,
+                {token: this.caller}
+            );
         }
         const argObj = {};
         for (const name of [...argNames.reverse()]) {
@@ -220,8 +248,8 @@ export class Operator {
         }
     }
 
-    invoke(interpreter: Interpreter, name: string) {
-        const stack = new StackWrapper(interpreter.stack, {caller: name});
+    invoke(interpreter: Interpreter, caller: Token) {
+        const stack = new StackWrapper(interpreter.stack, {caller});
         const result = this.func({stack, interpreter});
         this.pushResult(interpreter, result);
         return result;
@@ -242,12 +270,13 @@ export class Interpreter {
         this.localsUid = 0;
     }
 
-    getOp(name: string) {
+    getOp(token: Token) {
+        const name = token.value;
         if (name in this.opTable) { return this.opTable[name]; }
-        throw new Error(`"${name}" is not an operator`);
+        throw new InterpreterError(`"${name}" is not an operator`, {token});
     }
 
-    evaluate(input: string): Token {
+    evaluate(input: string, {locationOffset=0}: {locationOffset?: number} = {}): Token {
         // substitute locals
         const uid = this.localsUid++;
         const locals = new Set();
@@ -266,14 +295,14 @@ export class Interpreter {
         }, {deep: true});
 
         // eval
-        for (const tok of this.tokenizer.tokenize(input)) { 
+        for (const tok of this.tokenizer.tokenize(input, {locationOffset})) { 
             if (tok.type === "symbol") { this.stack.push(tok); }
             else if (tok.type === "operator") {
-                const op = this.getOp(tok.value);
-                op.invoke(this, tok.value);
+                const op = this.getOp(tok);
+                op.invoke(this, tok);
             }
             else if (tok.type === "local") {
-                throw new Error(`Internal error: unreplaced local ${tok.value}`);
+                throw new InterpreterError(`Internal error: unreplaced local ${tok.value}`, {token: tok});
             }
             else {
                 absurd(tok.type); 
@@ -312,12 +341,12 @@ export function run(input: string) {
         "or": valueOp(["a", "b"], ({a, b}) => a.value || b.value),
         "if": new Operator(({stack, interpreter}) => {
             const {otherwise, then, condition} = stack.popArgs("condition", "then", "otherwise");
-            interpreter.evaluate(condition.value);
+            interpreter.evaluate(condition.value, {locationOffset: condition.location});
             const result = stack.pop();
             if (result && result.value) {
-                interpreter.evaluate(then.value);
+                interpreter.evaluate(then.value, {locationOffset: then.location});
             } else {
-                interpreter.evaluate(otherwise.value);
+                interpreter.evaluate(otherwise.value, {locationOffset: otherwise.location});
             }
         }),
         "print": new Operator(({stack}) => { console.log(stack.pop().value); }),
@@ -338,9 +367,12 @@ export function run(input: string) {
                 const next = all.shift();
                 stack.push(result);
                 stack.push(next);
-                interpreter.evaluate(op.value);
+                interpreter.evaluate(op.value, {locationOffset: op.location});
                 if (stack.length > 1) {
-                    throw new Error(`Reduce operation ${op.serialize()} left more than one value on the stack.`);
+                    throw new InterpreterError(
+                        `Reduce operation ${op.serialize()} left more than one value on the stack.`,
+                        {token: op},
+                    );
                 }
                 result = stack.pop();
             }
@@ -351,7 +383,7 @@ export function run(input: string) {
             const all = stack.popAll();
             while (all.length > 0) {
                 stack.push(all.shift());
-                interpreter.evaluate(op.value);
+                interpreter.evaluate(op.value, {locationOffset: op.location});
             }
         }),
         "filter": new Operator(({stack, interpreter}) => {
@@ -360,12 +392,18 @@ export function run(input: string) {
             while (all.length > 0) {
                 const value = all.shift();
                 stack.push(value.clone());
-                const result = interpreter.evaluate(op.value);
+                const result = interpreter.evaluate(op.value, {locationOffset: op.location});
                 if (stack.length === 0) {
-                    throw new Error(`Filter operation ${op.serialize()} didn't leave a value on the stack.`);
+                    throw new InterpreterError(
+                        `Filter operation ${op.serialize()} didn't leave a value on the stack.`,
+                        {token: op}
+                    );
                 }
                 if (isIterable(result)) {
-                    throw new Error(`Filter operation ${op.serialize()} added too many values to the stack.`);
+                    throw new InterpreterError(
+                        `Filter operation ${op.serialize()} added extra values to the stack.`,
+                        {token: op}
+                    );
                 }
                 stack.pop();
                 if (result.value) {
@@ -376,8 +414,14 @@ export function run(input: string) {
         }),
         "range": new Operator(({stack}) => {
             const {step, end, start} = stack.popArgs("start", "end", "step");
-            if (typeof start.value !== "number" || typeof end.value !== "number" || typeof step.value !== "number") {
-                throw new Error("range operator expects numerical arguments");
+            if (typeof start.value !== "number") { 
+                throw new InterpreterError("range operator expects numerical value for start", {token: start});
+            }
+            if (typeof end.value !== "number") { 
+                throw new InterpreterError("range operator expects numerical value for end", {token: end});
+            }
+            if (typeof step.value !== "number") { 
+                throw new InterpreterError("range operator expects numerical value for step", {token: step});
             }
             const dir = Math.sign(end.value - start.value);
             const steps = Math.abs(end.value - start.value) / step.value;
@@ -391,10 +435,10 @@ export function run(input: string) {
         "define-op": new Operator(({stack, interpreter}) => {
             const {code, arity, name} = stack.popArgs("name", "arity", "code");
             if (typeof arity.value !== "number" && arity.value !== "none") {
-                throw new Error(`Invalid arity value ${arity.value}`);
+                throw new InterpreterError(`Invalid arity value ${arity.value}\nMust be numerical or "none".`, {token: arity});
             }
             opTable[name.value] = new Operator(() => {
-                interpreter.evaluate(code.value);
+                interpreter.evaluate(code.value, {locationOffset: code.location});
             }, arity.value);
         }),
         "del-op": new Operator(({stack}) => {delete opTable[stack.pop().value];}),
@@ -408,7 +452,10 @@ export function run(input: string) {
                 value: all.map(x => x.serialize()).join(" ")
             });
         }),
-        "eval": new Operator(({stack, interpreter}) => {interpreter.evaluate(stack.pop().value);}),
+        "eval": new Operator(({stack, interpreter}) => {
+            const token = stack.pop();
+            interpreter.evaluate(token.value, {locationOffset: token.location});
+        }),
         "js": new Operator(({stack}) => {
             const str = stack.pop();
             const evaluate = (code) => (function(code){return eval(code)}).call({

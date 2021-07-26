@@ -1,6 +1,6 @@
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import * as base2048 from "base2048";
-import {run, RE} from "./stacker";
+import {run, RE, InterpreterError} from "./stacker";
 
 const createEditor = () => {
     monaco.languages.register({ id: 'ldc' });
@@ -69,10 +69,32 @@ const createEditor = () => {
     });
 }
 
-const runCode = (code) => {
+const getLineCol = (source: string, location: number): [number, number] => {
+    let i = 0;
+    let line = 1;
+    let col = 0;
+    let last = null;
+    while (i <= location) {
+        const char = source[i];
+        if (char === "\r" || (char === "\n" && last !== "\r")) {
+            ++line;
+            col = 0;
+        }
+        else if (char !== "\n") {
+            ++col;
+        }
+        last = char;
+        ++i;
+    }
+    return [line, col];
+};
+
+const runCode = ({code, editor}: {code: string, editor: monaco.editor.IStandaloneCodeEditor}) => {
     const registers = document.getElementById("registers");
     const output = document.getElementById("stack");
     try {
+        monaco.editor.setModelMarkers(editor.getModel(), 'whatever', []);
+
         const result = run(code);
         output.innerHTML = "";
         result.interpreter.stack.reverse().forEach(token => {
@@ -101,7 +123,14 @@ const runCode = (code) => {
             registers.appendChild(node);
         });
     } catch (e) {
-        output.textContent = e;
+        if (e instanceof InterpreterError && typeof e.location === 'number') {
+            const [startLineNumber, startColumn] = getLineCol(code, e.location);
+            const [endLineNumber, endColumn] = getLineCol(code, e.location + e.length ?? 1);
+            monaco.editor.setModelMarkers(editor.getModel(), 'whatever', [
+                {startLineNumber, startColumn, endLineNumber, endColumn, severity: monaco.MarkerSeverity.Error, message: e.message}
+            ]);
+        }
+        output.textContent = e.message;
     }
 };
 
@@ -118,7 +147,7 @@ window.addEventListener("load", function(){
 
     document.getElementById("input").addEventListener("keyup", () => {
         const code = editor.getValue();
-        runCode(code);
+        runCode({code, editor});
         window.history.replaceState(undefined, undefined, `#${base2048.encode(new TextEncoder().encode(code))}`);
     }, false);
 }, false);
