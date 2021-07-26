@@ -401,6 +401,7 @@ export function run(input: string) {
         "store": new Operator(({stack}) => {const {val, name} = stack.popArgs("val", "name"); memory[name.value] = val;}),
         "load": new Operator(({stack}) => memory[stack.pop().value]),
         "delete": new Operator(({stack}) => {delete memory[stack.pop().value]}),
+        "serialize": valueOp(["value"], ({value}) => value.serialize()),
         "pack": new Operator(({stack}) => {
             const all = stack.popAll();
             return new Token({
