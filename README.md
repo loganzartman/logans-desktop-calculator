@@ -85,6 +85,29 @@ fib 1 (
 ```
 *34*
 
+### FizzBuzz
+_in case you get interviewed in LDC_
+```
+newline 0 ((
+)) define-op // TODO: support escapes lol
+
+fizz-buzz 1 (
+  1 swap 1 + 1 range
+  (
+    ""
+    over (3 % 0 ==) ('Fizz +) () if
+    over (5 % 0 ==) ('Buzz +) () if
+    dup ("" ==) (pop) (swap pop) if
+  ) map
+  (
+    newline swap + +
+  ) reduce
+) define-op
+
+20 fizz-buzz
+```
+*(the correct answer to fizz-buzz of 20)*
+
 ### Working with the whole stack
 ```
 1 2 3 pack 'stack store
