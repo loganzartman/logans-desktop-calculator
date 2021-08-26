@@ -410,12 +410,13 @@ export function run(input: string) {
             });
         }),
         "eval": new Operator(({stack, interpreter}) => {interpreter.evaluate(stack.pop().value);}),
-        "js": new Operator(({stack}) => {
+        "js": new Operator(({stack, interpreter}) => {
             const str = stack.pop();
             const evaluate = (code) => (function(code){return eval(code)}).call({
                 stack,
                 push: (...values) => {values.forEach(value => stack.push(new Token({type: 'symbol', value})))},
                 pop: () => stack.pop().value,
+                eval: (code) => interpreter.evaluate(code),
             },code);
             const result = evaluate(str.value);
             if (typeof result !== "undefined") {
