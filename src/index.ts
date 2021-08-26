@@ -105,6 +105,27 @@ const runCode = (code) => {
     }
 };
 
+const debounce = (fn, interval) => {
+    let last = 0;
+    let lastArgs = undefined;
+    let timeout = null;
+    return (...args) => {
+        lastArgs = args;
+        const timeElapsed = Date.now() - last;
+        if (timeElapsed > interval) {
+            last = Date.now();
+            fn(...lastArgs);
+        } else if (timeout === null) {
+            timeout = setTimeout(() => {
+                last = Date.now();
+                fn(...lastArgs);
+                timeout = null;
+            }, interval - timeElapsed);
+        } else {
+        }
+    };
+};
+
 window.addEventListener("load", function(){
     const editor = createEditor();
     try {
@@ -116,9 +137,13 @@ window.addEventListener("load", function(){
         console.error(e);
     }
 
+    const updateHash = debounce((code) => {
+        window.history.replaceState(undefined, undefined, `#${base2048.encode(new TextEncoder().encode(code))}`);
+    }, 500);
+
     document.getElementById("input").addEventListener("keyup", () => {
         const code = editor.getValue();
         runCode(code);
-        window.history.replaceState(undefined, undefined, `#${base2048.encode(new TextEncoder().encode(code))}`);
+        updateHash(code);
     }, false);
 }, false);
