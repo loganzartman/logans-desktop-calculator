@@ -1,6 +1,6 @@
 import Interpreter, { OpTable } from './Interpreter';
+import { doJsBind } from './jsBind';
 import Operator from './Operator';
-import StackWrapper from './StackWrapper';
 import Token from './Token';
 import Tokenizer, { RuleSet } from './Tokenizer';
 import { isIterable } from './util';
@@ -157,6 +157,12 @@ export function run(input: string) {
             if (typeof result !== "undefined") {
                 stack.push(new Token({type: 'symbol', value: result}));
             }
+        }),
+        "js-bind": new Operator(({stack}) => {
+            const {object: objectToken, namePrefix: namePrefixToken} = stack.popArgs("object", "namePrefix");
+            const object = eval(objectToken.value);
+            const namePrefix = namePrefixToken.value;
+            doJsBind({opTable, object, namePrefix});
         }),
     };
 
