@@ -12,7 +12,7 @@ export const RE = {
     commentLine: /\/\/.*?$/m,
     commentMulti: /\/\*+[^*]*\*+(?:[^/*][^*]*\*+)*\//,
     stringQuotes: /"((?:[^"\\]|\\.)*?)"/,
-    stringSymbol: /'([^\s')]+)/,
+    stringSymbol: /'([^\s')]*)/,
     boolean: /true|false/,
     number: /[+-]?\d*\.?[0-9]+([eE][+-]?\d+)?/,
     identifier: /[^\s()]+/,
