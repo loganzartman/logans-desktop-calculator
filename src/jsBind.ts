@@ -2,6 +2,9 @@ import Token from "./Token";
 import StackWrapper from "./StackWrapper";
 import { OpTable } from "./Interpreter";
 import Operator from "./Operator";
+import { collectItems } from "./util";
+
+const terminator = '\\';
 
 const getAllProperties = (obj: any): Array<any> => {
     const props = new Set();
@@ -12,18 +15,6 @@ const getAllProperties = (obj: any): Array<any> => {
     return [...props];
 };
 
-const collectArgs = (stack: StackWrapper) => {
-    const args = [];
-    while (stack.length > 0) {
-        const value = stack.pop().value;
-        if (value === "\\") {
-            break;
-        }
-        args.push(value);
-    }
-    return args;
-};
-
 export const doJsBind = ({opTable, object, namePrefix}: {opTable: OpTable, object: unknown, namePrefix: String}) => {
     const bindProp = (obj, prop, {isPrototype=false}={}) => {
         const opName = `${namePrefix}${prop}`;
@@ -32,7 +23,7 @@ export const doJsBind = ({opTable, object, namePrefix}: {opTable: OpTable, objec
             if (typeof value === 'function') {
                 console.log(`call ${isPrototype ? 'prototype ' : ''}func ${opName}`);
                 const this_ = isPrototype ? stack.pop().value : obj;
-                const args = collectArgs(stack);
+                const args = collectItems(stack, terminator).map(x => x.value);
                 stack.push(new Token({
                     type: "symbol",
                     value: value.apply(this_, args),
@@ -57,7 +48,7 @@ export const doJsBind = ({opTable, object, namePrefix}: {opTable: OpTable, objec
     } else if (typeof object === 'function' && object.prototype) {
         opTable[`${namePrefix}new`] = new Operator(({stack}) => {
             console.log(`constructing object ${namePrefix}`);
-            const args = collectArgs(stack);
+            const args = collectItems(stack, terminator).map(x => x.value);
             stack.push(new Token({
                 type: "symbol",
                 value: new (object as any)(...args),

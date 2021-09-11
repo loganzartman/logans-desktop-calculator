@@ -3,7 +3,7 @@ import { doJsBind } from './jsBind';
 import Operator from './Operator';
 import Token from './Token';
 import Tokenizer, { RuleSet } from './Tokenizer';
-import { isIterable } from './util';
+import { collectItems, isIterable } from './util';
 
 export class InputExhausted extends Error {}
 export class UnknownOperator extends Error {}
@@ -121,6 +121,14 @@ export function run(input: string) {
                 stack.push(new Token({type: "symbol", value: val}));
                 val += dir * step.value;
             }
+        }),
+        "collect": new Operator(({stack}) => {
+            const {terminator} = stack.popArgs("terminator");
+            const items = collectItems(stack, terminator.value);
+            return new Token({
+                type: 'symbol',
+                value: items.map(x => x.serialize()).join(" "),
+            });
         }),
         "alias-op": new Operator(({stack}) => {const {a, b} = stack.popArgs("a", "b"); opTable[b.value] = opTable[a.value];}),
         "define-op": new Operator(({stack, interpreter}) => {
